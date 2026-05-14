@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { computed, ref } from 'vue'
+import { computed, ref, toRaw } from 'vue'
 import { db } from '@/db'
 import { sections } from '@/config/sections'
 import { newUuid } from '@/utils/uuid'
@@ -13,6 +13,13 @@ const emptyPhotosBySection = () =>
 
 const todayIsoDate = () => new Date().toISOString().slice(0, 10)
 const nowIso = () => new Date().toISOString()
+
+// iOS Safari rejects Vue reactive proxies when IndexedDB tries to structured-
+// clone them ("DataCloneError: the object can not be cloned"). The Inspection
+// shape has no binary data, so a JSON round-trip is the cheapest way to drop
+// every layer of reactivity before persisting.
+const plainInspection = (record: Inspection): Inspection =>
+  JSON.parse(JSON.stringify(toRaw(record))) as Inspection
 
 export const useInspectionStore = defineStore('inspection', () => {
   const inspection = ref<Inspection | null>(null)
@@ -47,7 +54,7 @@ export const useInspectionStore = defineStore('inspection', () => {
         created_at: now,
         updated_at: now,
       }
-      await db.inspections.put(draft)
+      await db.inspections.put(plainInspection(draft))
       inspection.value = draft
       photos.value = []
     } finally {
@@ -94,7 +101,7 @@ export const useInspectionStore = defineStore('inspection', () => {
       updated_at: nowIso(),
     }
     inspection.value = updated
-    await db.inspections.put(updated)
+    await db.inspections.put(plainInspection(updated))
   }
 
   async function addPhotoFromFile(sectionKey: SectionKey, file: File): Promise<void> {
@@ -121,7 +128,7 @@ export const useInspectionStore = defineStore('inspection', () => {
       photo.id,
     ]
     inspection.value.updated_at = nowIso()
-    await db.inspections.put(inspection.value)
+    await db.inspections.put(plainInspection(inspection.value))
   }
 
   async function removePhoto(photoId: string) {
@@ -137,7 +144,7 @@ export const useInspectionStore = defineStore('inspection', () => {
       sectionKey
     ].filter((id) => id !== photoId)
     inspection.value.updated_at = nowIso()
-    await db.inspections.put(inspection.value)
+    await db.inspections.put(plainInspection(inspection.value))
   }
 
   async function submitInspection(): Promise<boolean> {
@@ -205,7 +212,7 @@ export const useInspectionStore = defineStore('inspection', () => {
       updated_at: nowIso(),
     }
     inspection.value = updated
-    await db.inspections.put(updated)
+    await db.inspections.put(plainInspection(updated))
   }
 
   return {
