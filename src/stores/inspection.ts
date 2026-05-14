@@ -4,6 +4,8 @@ import { db } from '@/db'
 import { sections } from '@/config/sections'
 import { newUuid } from '@/utils/uuid'
 import { resizePhoto } from '@/utils/photo'
+import { inspectionSync, type SyncProgress } from '@/services/sync'
+import { cloudinaryConfigured } from '@/utils/cloudinary'
 import type { Inspection, Photo, SectionKey } from '@/types'
 
 const emptyPhotosBySection = () =>
@@ -16,6 +18,8 @@ export const useInspectionStore = defineStore('inspection', () => {
   const inspection = ref<Inspection | null>(null)
   const photos = ref<Photo[]>([])
   const isLoading = ref(false)
+  const syncProgress = ref<SyncProgress | null>(null)
+  const submitError = ref<string | null>(null)
 
   const photosBySection = computed<Record<SectionKey, Photo[]>>(() => {
     const grouped = Object.fromEntries(
@@ -136,16 +140,87 @@ export const useInspectionStore = defineStore('inspection', () => {
     await db.inspections.put(inspection.value)
   }
 
+  async function submitInspection(): Promise<boolean> {
+    if (!inspection.value) return false
+    submitError.value = null
+
+    if (!cloudinaryConfigured()) {
+      submitError.value = 'Photo storage is not configured yet. Add Cloudinary credentials.'
+      return false
+    }
+
+    const inspection_record = inspection.value
+    await setStatus('syncing')
+
+    const unsubscribe = inspectionSync.on((event) => {
+      if (event.type === 'progress') {
+        syncProgress.value = { ...event.progress }
+      }
+      if (event.type === 'photo_uploaded' || event.type === 'photo_failed') {
+        const index = photos.value.findIndex((p) => p.id === event.photo_id)
+        if (index !== -1) {
+          const next: Photo = { ...photos.value[index] }
+          if (event.type === 'photo_uploaded') {
+            next.upload_status = 'uploaded'
+            next.cloudinary_url = event.secure_url
+          } else {
+            next.upload_status = 'failed'
+          }
+          photos.value = [
+            ...photos.value.slice(0, index),
+            next,
+            ...photos.value.slice(index + 1),
+          ]
+        }
+      }
+    })
+
+    try {
+      const { uploaded, failed } = await inspectionSync.uploadPendingPhotos(inspection_record)
+      if (failed > 0) {
+        submitError.value = `${failed} photo${failed === 1 ? '' : 's'} failed to upload. Tap submit again to retry.`
+        await setStatus('failed')
+        return false
+      }
+      // TODO(day 4): POST inspection JSON to launchengine-api so it can
+      // generate the PDF and create the Monday board item. For now we mark
+      // it locally as synced once all photos are in Cloudinary.
+      void uploaded
+      await setStatus('synced')
+      return true
+    } catch (err) {
+      submitError.value = err instanceof Error ? err.message : 'Sync failed.'
+      await setStatus('failed')
+      return false
+    } finally {
+      unsubscribe()
+    }
+  }
+
+  async function setStatus(status: Inspection['status']) {
+    if (!inspection.value) return
+    const updated: Inspection = {
+      ...inspection.value,
+      status,
+      updated_at: nowIso(),
+    }
+    inspection.value = updated
+    await db.inspections.put(updated)
+  }
+
   return {
     inspection,
     photos,
     photosBySection,
     isLoading,
+    syncProgress,
+    submitError,
     startNewInspection,
     loadInspection,
     loadOrStartDraft,
     updateMetadata,
     addPhotoFromFile,
     removePhoto,
+    submitInspection,
   }
 })

@@ -30,11 +30,17 @@ const status = computed(() => {
 // Per-photo object URL cache so the same blob doesn't get re-created on every render.
 const objectUrls = new Map<string, string>()
 
-const photoUrls = computed<Array<{ id: string; url: string }>>(() => {
+interface PhotoTile {
+  id: string
+  url: string
+  status: Photo['upload_status']
+}
+
+const photoUrls = computed<PhotoTile[]>(() => {
   return props.photos
-    .map((photo) => {
+    .map((photo): PhotoTile | null => {
       if (photo.cloudinary_url) {
-        return { id: photo.id, url: photo.cloudinary_url }
+        return { id: photo.id, url: photo.cloudinary_url, status: photo.upload_status }
       }
       if (!photo.data) return null
       let url = objectUrls.get(photo.id)
@@ -43,9 +49,9 @@ const photoUrls = computed<Array<{ id: string; url: string }>>(() => {
         url = URL.createObjectURL(blob)
         objectUrls.set(photo.id, url)
       }
-      return { id: photo.id, url }
+      return { id: photo.id, url, status: photo.upload_status }
     })
-    .filter((p): p is { id: string; url: string } => p !== null)
+    .filter((p): p is PhotoTile => p !== null)
 })
 
 watch(
@@ -113,7 +119,23 @@ function handleRemove(photoId: string) {
     <ul v-if="photoUrls.length > 0" class="section__gallery" aria-label="Captured photos">
       <li v-for="photo in photoUrls" :key="photo.id" class="section__thumb">
         <img :src="photo.url" alt="" class="section__thumb-img" />
+        <span
+          v-if="photo.status === 'uploading'"
+          class="section__badge section__badge--uploading"
+          aria-label="Uploading"
+        >…</span>
+        <span
+          v-else-if="photo.status === 'uploaded'"
+          class="section__badge section__badge--uploaded"
+          aria-label="Uploaded"
+        >✓</span>
+        <span
+          v-else-if="photo.status === 'failed'"
+          class="section__badge section__badge--failed"
+          aria-label="Upload failed"
+        >!</span>
         <button
+          v-if="photo.status !== 'uploading'"
           class="section__remove"
           type="button"
           aria-label="Remove photo"
@@ -235,6 +257,34 @@ function handleRemove(photoId: string) {
   align-items: center;
   justify-content: center;
   padding: 0;
+}
+
+.section__badge {
+  position: absolute;
+  bottom: 4px;
+  left: 4px;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: white;
+}
+
+.section__badge--uploading {
+  background-color: rgba(37, 99, 235, 0.9);
+}
+
+.section__badge--uploaded {
+  background-color: rgba(22, 163, 74, 0.9);
+}
+
+.section__badge--failed {
+  background-color: rgba(220, 38, 38, 0.95);
 }
 
 .section__empty {

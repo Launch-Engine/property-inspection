@@ -9,7 +9,7 @@ import InspectionSection from '@/components/InspectionSection.vue'
 
 const router = useRouter()
 const store = useInspectionStore()
-const { inspection, photosBySection, isLoading } = storeToRefs(store)
+const { inspection, photosBySection, isLoading, syncProgress, submitError } = storeToRefs(store)
 
 onMounted(async () => {
   await store.loadOrStartDraft()
@@ -46,9 +46,14 @@ function handleRemovePhoto(photoId: string) {
   store.removePhoto(photoId)
 }
 
-function handleSubmit() {
-  // TODO(day 3-4): Cloudinary upload + POST /inspections + Rails sync.
-  alert('Submit flow not yet wired up.')
+const isSubmitting = computed(() => syncProgress.value?.in_progress === true)
+const isSynced = computed(() => inspection.value?.status === 'synced')
+
+async function handleSubmit() {
+  const ok = await store.submitInspection()
+  if (ok) {
+    // Stay on the page so the inspector sees the success state; back to home is one tap away.
+  }
 }
 
 function handleCancel() {
@@ -133,13 +138,45 @@ function handleCancel() {
           still need photos.
         </p>
 
+        <div v-if="syncProgress" class="inspection__sync">
+          <div class="inspection__sync-row">
+            <span>
+              Uploading photos… {{ syncProgress.uploaded }} of {{ syncProgress.total }}
+              <span v-if="syncProgress.failed > 0" class="inspection__sync-failed">
+                · {{ syncProgress.failed }} failed
+              </span>
+            </span>
+          </div>
+          <div class="inspection__sync-bar" aria-hidden="true">
+            <div
+              class="inspection__sync-bar-fill"
+              :style="{
+                width: `${
+                  syncProgress.total === 0
+                    ? 0
+                    : ((syncProgress.uploaded + syncProgress.failed) / syncProgress.total) * 100
+                }%`,
+              }"
+            />
+          </div>
+        </div>
+
+        <p v-if="submitError" class="inspection__submit-error" role="alert">{{ submitError }}</p>
+
+        <p v-if="isSynced" class="inspection__synced" role="status">
+          Inspection submitted. All photos uploaded.
+        </p>
+
         <button
           class="inspection__submit"
           type="button"
-          :disabled="!canSubmit"
+          :disabled="!canSubmit || isSubmitting"
           @click="handleSubmit"
         >
-          Submit Inspection
+          <span v-if="isSubmitting">Submitting…</span>
+          <span v-else-if="isSynced">Submitted ✓</span>
+          <span v-else-if="submitError">Retry Submit</span>
+          <span v-else>Submit Inspection</span>
         </button>
       </footer>
     </template>
@@ -267,5 +304,55 @@ function handleCancel() {
 
 .inspection__submit:not(:disabled):hover {
   background-color: var(--color-primary-hover);
+}
+
+.inspection__sync {
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+}
+
+.inspection__sync-row {
+  font-size: 0.875rem;
+  color: var(--color-text);
+  margin-bottom: var(--space-2);
+}
+
+.inspection__sync-failed {
+  color: var(--color-danger);
+}
+
+.inspection__sync-bar {
+  width: 100%;
+  height: 6px;
+  background-color: var(--color-border);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.inspection__sync-bar-fill {
+  height: 100%;
+  background-color: var(--color-accent);
+  transition: width 0.2s ease;
+}
+
+.inspection__submit-error {
+  margin: 0;
+  padding: var(--space-3);
+  background-color: #fee2e2;
+  color: #991b1b;
+  border-radius: var(--radius-md);
+  font-size: 0.875rem;
+}
+
+.inspection__synced {
+  margin: 0;
+  padding: var(--space-3);
+  background-color: #dcfce7;
+  color: #166534;
+  border-radius: var(--radius-md);
+  font-size: 0.875rem;
+  text-align: center;
 }
 </style>
