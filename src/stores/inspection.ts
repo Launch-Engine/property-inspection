@@ -5,6 +5,7 @@ import { sections } from '@/config/sections'
 import { newUuid } from '@/utils/uuid'
 import { resizePhoto } from '@/utils/photo'
 import { inspectionSync, type SyncProgress } from '@/services/sync'
+import { submitInspectionToApi, inspectionApiConfigured } from '@/services/api'
 import { cloudinaryConfigured } from '@/utils/cloudinary'
 import type { Inspection, Photo, SectionKey } from '@/types'
 
@@ -183,16 +184,21 @@ export const useInspectionStore = defineStore('inspection', () => {
     })
 
     try {
-      const { uploaded, failed } = await inspectionSync.uploadPendingPhotos(inspection_record)
+      const { failed } = await inspectionSync.uploadPendingPhotos(inspection_record)
       if (failed > 0) {
         submitError.value = `${failed} photo${failed === 1 ? '' : 's'} failed to upload. Tap submit again to retry.`
         await setStatus('failed')
         return false
       }
-      // TODO(day 4): POST inspection JSON to launchengine-api so it can
-      // generate the PDF and create the Monday board item. For now we mark
-      // it locally as synced once all photos are in Cloudinary.
-      void uploaded
+
+      if (inspectionApiConfigured()) {
+        const uploadedPhotos = await db.photos
+          .where('inspection_id')
+          .equals(inspection_record.id)
+          .toArray()
+        await submitInspectionToApi(inspection_record, uploadedPhotos)
+      }
+
       await setStatus('synced')
       return true
     } catch (err) {
