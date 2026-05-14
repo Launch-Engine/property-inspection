@@ -19,3 +19,6 @@ dist-ssr
 
 # PWA build artifacts
 dev-dist
+
+# Local Netlify folder
+.netlify

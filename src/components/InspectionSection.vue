@@ -1,26 +1,96 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import type { SectionConfig } from '@/types'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import type { Photo, SectionConfig } from '@/types'
 
 interface Props {
   section: SectionConfig
-  photoCount: number
+  photos: Photo[]
 }
 
 const props = defineProps<Props>()
 
-const isComplete = computed(() => props.photoCount >= props.section.minPhotos)
-const isFull = computed(() => props.photoCount >= props.section.maxPhotos)
+const emit = defineEmits<{
+  'add-photo': [file: File]
+  'remove-photo': [photoId: string]
+}>()
 
+const fileInput = ref<HTMLInputElement | null>(null)
+const isProcessing = ref(false)
+const errorMessage = ref<string | null>(null)
+
+const photoCount = computed(() => props.photos.length)
+const isComplete = computed(() => photoCount.value >= props.section.minPhotos)
+const isFull = computed(() => photoCount.value >= props.section.maxPhotos)
 const status = computed(() => {
   if (isComplete.value) return 'complete'
-  if (props.photoCount > 0) return 'partial'
+  if (photoCount.value > 0) return 'partial'
   return 'empty'
 })
 
-defineEmits<{
-  'add-photo': []
-}>()
+// Per-photo object URL cache so the same blob doesn't get re-created on every render.
+const objectUrls = new Map<string, string>()
+
+const photoUrls = computed<Array<{ id: string; url: string }>>(() => {
+  return props.photos
+    .map((photo) => {
+      if (photo.cloudinary_url) {
+        return { id: photo.id, url: photo.cloudinary_url }
+      }
+      if (!photo.blob) return null
+      let url = objectUrls.get(photo.id)
+      if (!url) {
+        url = URL.createObjectURL(photo.blob)
+        objectUrls.set(photo.id, url)
+      }
+      return { id: photo.id, url }
+    })
+    .filter((p): p is { id: string; url: string } => p !== null)
+})
+
+watch(
+  () => props.photos.map((p) => p.id).join(','),
+  (next) => {
+    const currentIds = new Set(next.split(',').filter(Boolean))
+    for (const [id, url] of objectUrls) {
+      if (!currentIds.has(id)) {
+        URL.revokeObjectURL(url)
+        objectUrls.delete(id)
+      }
+    }
+  },
+)
+
+onBeforeUnmount(() => {
+  for (const url of objectUrls.values()) {
+    URL.revokeObjectURL(url)
+  }
+  objectUrls.clear()
+})
+
+function openCamera() {
+  fileInput.value?.click()
+}
+
+async function handleFileChange(event: Event) {
+  const target = event.target as HTMLInputElement
+  const file = target.files?.[0]
+  if (!file) return
+
+  isProcessing.value = true
+  errorMessage.value = null
+  try {
+    emit('add-photo', file)
+  } catch (err) {
+    errorMessage.value = err instanceof Error ? err.message : 'Could not save photo.'
+  } finally {
+    isProcessing.value = false
+    target.value = ''
+  }
+}
+
+function handleRemove(photoId: string) {
+  emit('remove-photo', photoId)
+}
 </script>
 
 <template>
@@ -39,18 +109,40 @@ defineEmits<{
       </p>
     </header>
 
-    <div class="section__photos" aria-live="polite">
-      <p v-if="photoCount === 0" class="section__empty">No photos yet.</p>
-      <!-- Photo thumbnails will be rendered here once capture is wired up -->
-    </div>
+    <ul v-if="photoUrls.length > 0" class="section__gallery" aria-label="Captured photos">
+      <li v-for="photo in photoUrls" :key="photo.id" class="section__thumb">
+        <img :src="photo.url" alt="" class="section__thumb-img" />
+        <button
+          class="section__remove"
+          type="button"
+          aria-label="Remove photo"
+          @click="handleRemove(photo.id)"
+        >
+          ×
+        </button>
+      </li>
+    </ul>
+    <p v-else class="section__empty">No photos yet.</p>
+
+    <p v-if="errorMessage" class="section__error" role="alert">{{ errorMessage }}</p>
+
+    <input
+      ref="fileInput"
+      class="section__file-input"
+      type="file"
+      accept="image/*"
+      capture="environment"
+      @change="handleFileChange"
+    />
 
     <button
       class="section__capture"
       type="button"
-      :disabled="isFull"
-      @click="$emit('add-photo')"
+      :disabled="isFull || isProcessing"
+      @click="openCamera"
     >
-      <span v-if="isFull">Maximum photos reached</span>
+      <span v-if="isProcessing">Saving photo…</span>
+      <span v-else-if="isFull">Maximum photos reached</span>
       <span v-else-if="photoCount === 0">Take Photo</span>
       <span v-else>Add Another Photo</span>
     </button>
@@ -102,16 +194,71 @@ defineEmits<{
   opacity: 0.75;
 }
 
-.section__photos {
-  min-height: 24px;
-  margin-bottom: var(--space-3);
+.section__gallery {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 var(--space-3);
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: var(--space-2);
+}
+
+.section__thumb {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background-color: var(--color-bg);
+}
+
+.section__thumb-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.section__remove {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: none;
+  background-color: rgba(0, 0, 0, 0.65);
+  color: white;
+  font-size: 16px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
 }
 
 .section__empty {
-  margin: 0;
+  margin: 0 0 var(--space-3);
   font-size: 0.875rem;
   color: var(--color-text-muted);
   font-style: italic;
+}
+
+.section__error {
+  margin: 0 0 var(--space-3);
+  font-size: 0.875rem;
+  color: var(--color-danger);
+}
+
+.section__file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .section__capture {

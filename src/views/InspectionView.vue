@@ -1,40 +1,53 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue'
+import { computed, onMounted } from 'vue'
+import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
 import { sections } from '@/config/sections'
 import type { SectionKey } from '@/types'
+import { useInspectionStore } from '@/stores/inspection'
 import InspectionSection from '@/components/InspectionSection.vue'
 
 const router = useRouter()
+const store = useInspectionStore()
+const { inspection, photosBySection, isLoading } = storeToRefs(store)
 
-const inspector_name = ref('')
-const property_address = ref('')
-const inspection_date = ref(new Date().toISOString().slice(0, 10))
+onMounted(async () => {
+  await store.loadOrStartDraft()
+})
 
-// Placeholder for photo counts until photo capture + IndexedDB are wired up.
-const photo_counts = reactive(
-  Object.fromEntries(sections.map((s) => [s.key, 0])) as Record<SectionKey, number>,
+const requiredSectionsMissing = computed(() =>
+  sections.filter((s) => s.required && (photosBySection.value[s.key]?.length ?? 0) < s.minPhotos),
 )
 
-const required_sections_missing = computed(() =>
-  sections.filter((s) => s.required && photo_counts[s.key] < s.minPhotos),
-)
+const canSubmit = computed(() => {
+  const data = inspection.value
+  if (!data) return false
+  return (
+    data.inspector_name.trim() !== '' &&
+    data.property_address.trim() !== '' &&
+    data.inspection_date !== '' &&
+    requiredSectionsMissing.value.length === 0
+  )
+})
 
-const can_submit = computed(
-  () =>
-    inspector_name.value.trim() !== '' &&
-    property_address.value.trim() !== '' &&
-    inspection_date.value !== '' &&
-    required_sections_missing.value.length === 0,
-)
+function updateField(field: 'inspector_name' | 'property_address' | 'inspection_date', value: string) {
+  store.updateMetadata({ [field]: value })
+}
 
-function handleAddPhoto(key: SectionKey) {
-  // TODO(day 2): Open native camera via <input capture> and store blob in IndexedDB.
-  photo_counts[key] += 1
+async function handleAddPhoto(key: SectionKey, file: File) {
+  try {
+    await store.addPhotoFromFile(key, file)
+  } catch (err) {
+    console.error('Failed to add photo:', err)
+  }
+}
+
+function handleRemovePhoto(photoId: string) {
+  store.removePhoto(photoId)
 }
 
 function handleSubmit() {
-  // TODO(day 3-4): Resize, upload to Cloudinary, POST to /inspections.
+  // TODO(day 3-4): Cloudinary upload + POST /inspections + Rails sync.
   alert('Submit flow not yet wired up.')
 }
 
@@ -55,73 +68,81 @@ function handleCancel() {
       </p>
     </header>
 
-    <section class="inspection__metadata">
-      <label class="field">
-        <span class="field__label">
-          Your Name <span class="field__required">*</span>
-        </span>
-        <input
-          v-model="inspector_name"
-          class="field__input"
-          type="text"
-          autocomplete="name"
-          required
+    <p v-if="isLoading && !inspection" class="inspection__loading">Loading…</p>
+
+    <template v-else-if="inspection">
+      <section class="inspection__metadata">
+        <label class="field">
+          <span class="field__label">
+            Your Name <span class="field__required">*</span>
+          </span>
+          <input
+            :value="inspection.inspector_name"
+            class="field__input"
+            type="text"
+            autocomplete="name"
+            required
+            @input="updateField('inspector_name', ($event.target as HTMLInputElement).value)"
+          />
+        </label>
+
+        <label class="field">
+          <span class="field__label">
+            Property Address <span class="field__required">*</span>
+          </span>
+          <input
+            :value="inspection.property_address"
+            class="field__input"
+            type="text"
+            autocomplete="street-address"
+            required
+            @input="updateField('property_address', ($event.target as HTMLInputElement).value)"
+          />
+        </label>
+
+        <label class="field">
+          <span class="field__label">
+            Date <span class="field__required">*</span>
+          </span>
+          <input
+            :value="inspection.inspection_date"
+            class="field__input"
+            type="date"
+            required
+            @input="updateField('inspection_date', ($event.target as HTMLInputElement).value)"
+          />
+        </label>
+      </section>
+
+      <section class="inspection__sections">
+        <InspectionSection
+          v-for="section in sections"
+          :key="section.key"
+          :section="section"
+          :photos="photosBySection[section.key] ?? []"
+          @add-photo="(file) => handleAddPhoto(section.key, file)"
+          @remove-photo="handleRemovePhoto"
         />
-      </label>
+      </section>
 
-      <label class="field">
-        <span class="field__label">
-          Property Address <span class="field__required">*</span>
-        </span>
-        <input
-          v-model="property_address"
-          class="field__input"
-          type="text"
-          autocomplete="street-address"
-          required
-        />
-      </label>
+      <footer class="inspection__footer">
+        <p v-if="requiredSectionsMissing.length > 0" class="inspection__missing">
+          {{ requiredSectionsMissing.length }} required section{{
+            requiredSectionsMissing.length === 1 ? '' : 's'
+          }}
+          still need photos.
+        </p>
 
-      <label class="field">
-        <span class="field__label">
-          Date <span class="field__required">*</span>
-        </span>
-        <input
-          v-model="inspection_date"
-          class="field__input"
-          type="date"
-          required
-        />
-      </label>
-    </section>
-
-    <section class="inspection__sections">
-      <InspectionSection
-        v-for="section in sections"
-        :key="section.key"
-        :section="section"
-        :photo-count="photo_counts[section.key]"
-        @add-photo="handleAddPhoto(section.key)"
-      />
-    </section>
-
-    <footer class="inspection__footer">
-      <p v-if="required_sections_missing.length > 0" class="inspection__missing">
-        {{ required_sections_missing.length }} required section{{
-          required_sections_missing.length === 1 ? '' : 's'
-        }}
-        still need photos.
-      </p>
-
-      <button
-        class="inspection__submit"
-        type="button"
-        :disabled="!can_submit"
-        @click="handleSubmit"
-      >
-        Submit Inspection
-      </button>
-    </footer>
+        <button
+          class="inspection__submit"
+          type="button"
+          :disabled="!canSubmit"
+          @click="handleSubmit"
+        >
+          Submit Inspection
+        </button>
+      </footer>
+    </template>
   </main>
 </template>
 
@@ -156,6 +177,12 @@ function handleCancel() {
   margin: 0;
   color: var(--color-text-muted);
   font-size: 0.9375rem;
+}
+
+.inspection__loading {
+  text-align: center;
+  color: var(--color-text-muted);
+  padding: var(--space-6) 0;
 }
 
 .inspection__metadata {
