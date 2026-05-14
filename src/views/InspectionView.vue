@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
 import { sections } from '@/config/sections'
@@ -59,23 +59,13 @@ function handleRemovePhoto(photoId: string) {
 
 const isSubmitting = computed(() => syncProgress.value?.in_progress === true)
 const isSynced = computed(() => inspection.value?.status === 'synced')
-const debugMessage = ref<string | null>(null)
 const buildVersion = __BUILD_VERSION__
 
-function pingDebug() {
-  debugMessage.value = `Ping at ${new Date().toLocaleTimeString()} — click events work`
-}
-
 async function handleSubmit() {
-  debugMessage.value = `Submit tapped at ${new Date().toLocaleTimeString()}`
   try {
-    const ok = await store.submitInspection()
-    debugMessage.value = ok
-      ? `Submit returned true at ${new Date().toLocaleTimeString()}`
-      : `Submit returned false at ${new Date().toLocaleTimeString()} (see error below)`
+    await store.submitInspection()
   } catch (err) {
-    const message = err instanceof Error ? `${err.name}: ${err.message}` : String(err)
-    debugMessage.value = `Submit threw: ${message}`
+    console.error('Submit failed:', err)
   }
 }
 
@@ -190,8 +180,6 @@ function handleCancel() {
 
         <p v-if="submitError" class="inspection__submit-error" role="alert">{{ submitError }}</p>
 
-        <p v-if="debugMessage" class="inspection__debug" role="status">{{ debugMessage }}</p>
-
         <p v-if="isSynced" class="inspection__synced" role="status">
           Inspection submitted. All photos uploaded.
         </p>
@@ -206,10 +194,6 @@ function handleCancel() {
           <span v-else-if="isSynced">Submitted ✓</span>
           <span v-else-if="submitError">Retry Submit</span>
           <span v-else>Submit Inspection</span>
-        </button>
-
-        <button class="inspection__ping" type="button" @click="pingDebug">
-          Tap to test clicks
         </button>
       </footer>
     </template>
@@ -401,32 +385,10 @@ function handleCancel() {
   text-align: center;
 }
 
-.inspection__debug {
-  margin: 0;
-  padding: var(--space-3);
-  background-color: #e0f2fe;
-  color: #075985;
-  border-radius: var(--radius-md);
-  font-size: 0.8125rem;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  word-break: break-word;
-}
-
 .inspection__build {
   margin: var(--space-2) 0 0;
   font-size: 0.6875rem;
   color: var(--color-text-muted);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-}
-
-.inspection__ping {
-  width: 100%;
-  background-color: #fbbf24;
-  color: #78350f;
-  border: none;
-  padding: var(--space-3);
-  font-size: 0.875rem;
-  font-weight: 600;
-  border-radius: var(--radius-md);
 }
 </style>
