@@ -132,6 +132,45 @@ export const useInspectionStore = defineStore('inspection', () => {
     await db.inspections.put(plainInspection(inspection.value))
   }
 
+  async function seedTestPhotos(count: number): Promise<number> {
+    if (!inspection.value) {
+      throw new Error('No active inspection to seed.')
+    }
+    const sourcePhoto = photos.value.find((p) => p.data)
+    if (!sourcePhoto || !sourcePhoto.data) {
+      throw new Error('Take at least one real photo first — seeding clones its bytes.')
+    }
+
+    const sectionKeys = sections.map((s) => s.key)
+    const created: Photo[] = []
+    for (let i = 0; i < count; i += 1) {
+      const sectionKey = sectionKeys[i % sectionKeys.length]
+      const clonedData = sourcePhoto.data.slice(0)
+      created.push({
+        id: newUuid(),
+        inspection_id: inspection.value.id,
+        section_key: sectionKey,
+        data: clonedData,
+        mime_type: sourcePhoto.mime_type,
+        upload_status: 'pending',
+        captured_at: nowIso(),
+      })
+    }
+
+    await db.photos.bulkPut(created)
+    photos.value = [...photos.value, ...created]
+
+    for (const photo of created) {
+      inspection.value.photos_by_section[photo.section_key] = [
+        ...inspection.value.photos_by_section[photo.section_key],
+        photo.id,
+      ]
+    }
+    inspection.value.updated_at = nowIso()
+    await db.inspections.put(plainInspection(inspection.value))
+    return created.length
+  }
+
   async function removePhoto(photoId: string) {
     if (!inspection.value) return
     const photo = photos.value.find((p) => p.id === photoId)
@@ -233,6 +272,7 @@ export const useInspectionStore = defineStore('inspection', () => {
     loadOrStartDraft,
     updateMetadata,
     addPhotoFromFile,
+    seedTestPhotos,
     removePhoto,
     submitInspection,
   }

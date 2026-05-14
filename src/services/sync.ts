@@ -4,6 +4,7 @@ import type { Inspection, Photo } from '@/types'
 
 const MAX_ATTEMPTS = 3
 const BACKOFF_MS = [0, 1500, 4000]
+const UPLOAD_CONCURRENCY = 5
 
 export interface SyncProgress {
   total: number
@@ -54,12 +55,23 @@ class InspectionSyncService {
       }
       this.emit({ type: 'progress', progress: { ...progress } })
 
-      for (const photo of pending) {
-        const ok = await this.uploadOne(photo, inspection)
-        if (ok) progress.uploaded += 1
-        else progress.failed += 1
-        this.emit({ type: 'progress', progress: { ...progress } })
+      // Upload with bounded concurrency so 100-photo inspections don't take
+      // 100× single-photo latency. Cloudinary's free tier handles ~5 parallel
+      // uploads from one client comfortably; higher tends to throttle.
+      let cursor = 0
+      const worker = async () => {
+        while (true) {
+          const index = cursor
+          cursor += 1
+          if (index >= pending.length) return
+          const ok = await this.uploadOne(pending[index], inspection)
+          if (ok) progress.uploaded += 1
+          else progress.failed += 1
+          this.emit({ type: 'progress', progress: { ...progress } })
+        }
       }
+      const workerCount = Math.min(UPLOAD_CONCURRENCY, pending.length)
+      await Promise.all(Array.from({ length: workerCount }, () => worker()))
 
       progress.in_progress = false
       // Emit one final progress event so listeners can drop the spinner. Without

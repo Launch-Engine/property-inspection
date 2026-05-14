@@ -13,7 +13,9 @@ const HEADER_HEIGHT = 110
 // or oversized originals.
 function transformedCloudinaryUrl(url: string): string {
   if (!url.includes('/upload/')) return url
-  return url.replace('/upload/', '/upload/f_jpg,q_80,w_1400/')
+  // Smaller width keeps PDF size sane and fits fetch time under Netlify's 10s
+  // function ceiling even at 100-photo inspections.
+  return url.replace('/upload/', '/upload/f_jpg,q_78,w_1000/')
 }
 
 async function fetchAsJpegBytes(url: string): Promise<Uint8Array> {
@@ -23,6 +25,24 @@ async function fetchAsJpegBytes(url: string): Promise<Uint8Array> {
   }
   const buffer = await response.arrayBuffer()
   return new Uint8Array(buffer)
+}
+
+const FETCH_CONCURRENCY = 30
+
+async function fetchAllInParallel(urls: string[]): Promise<Uint8Array[]> {
+  const results = new Array<Uint8Array>(urls.length)
+  let cursor = 0
+  const worker = async () => {
+    while (true) {
+      const index = cursor
+      cursor += 1
+      if (index >= urls.length) return
+      results[index] = await fetchAsJpegBytes(urls[index])
+    }
+  }
+  const workerCount = Math.min(FETCH_CONCURRENCY, urls.length)
+  await Promise.all(Array.from({ length: workerCount }, () => worker()))
+  return results
 }
 
 interface DrawContext {
@@ -117,28 +137,21 @@ function fitImageBox(image: PDFImage, maxWidth: number, maxHeight: number) {
 
 async function drawSectionPhotos(
   ctx: DrawContext,
-  photoUrls: string[],
+  photoImages: PDFImage[],
 ): Promise<void> {
   const photosPerRow = 2
   const usableWidth = PAGE_WIDTH - MARGIN * 2
   const cellWidth = (usableWidth - PHOTO_GAP * (photosPerRow - 1)) / photosPerRow
   const cellHeight = cellWidth * 0.75
 
-  for (let i = 0; i < photoUrls.length; i += photosPerRow) {
+  for (let i = 0; i < photoImages.length; i += photosPerRow) {
     if (ctx.cursorY - cellHeight < MARGIN) {
       ctx.page = newPage(ctx.doc)
       ctx.cursorY = PAGE_HEIGHT - MARGIN
     }
 
-    const row = photoUrls.slice(i, i + photosPerRow)
-    const images = await Promise.all(
-      row.map(async (url) => {
-        const bytes = await fetchAsJpegBytes(url)
-        return ctx.doc.embedJpg(bytes)
-      }),
-    )
-
-    images.forEach((image, columnIndex) => {
+    const row = photoImages.slice(i, i + photosPerRow)
+    row.forEach((image, columnIndex) => {
       const cellX = MARGIN + columnIndex * (cellWidth + PHOTO_GAP)
       const { width, height } = fitImageBox(image, cellWidth, cellHeight)
       const offsetX = cellX + (cellWidth - width) / 2
@@ -171,6 +184,10 @@ export async function generateInspectionPdf(submission: InspectionSubmission): P
 
   drawHeader(ctx, submission)
 
+  // Pre-fetch and embed every photo in parallel before any layout work. With
+  // 100 photos and sequential fetches at ~500ms each, generation alone would
+  // exceed Netlify's function timeout. Parallel fetch (capped at
+  // FETCH_CONCURRENCY) keeps total wall-clock under ~3s on typical broadband.
   const grouped = new Map<string, string[]>()
   for (const photo of submission.photos) {
     const existing = grouped.get(photo.section_key) ?? []
@@ -178,12 +195,31 @@ export async function generateInspectionPdf(submission: InspectionSubmission): P
     grouped.set(photo.section_key, existing)
   }
 
+  const orderedUrls: string[] = []
   for (const sectionKey of sectionOrder) {
-    const photos = grouped.get(sectionKey)
-    if (!photos || photos.length === 0) continue
+    const urls = grouped.get(sectionKey)
+    if (urls) orderedUrls.push(...urls)
+  }
+
+  const allBytes = await fetchAllInParallel(orderedUrls)
+  const embeddedByUrl = new Map<string, PDFImage>()
+  let cursor = 0
+  for (const sectionKey of sectionOrder) {
+    const urls = grouped.get(sectionKey)
+    if (!urls) continue
+    for (const url of urls) {
+      embeddedByUrl.set(url, await doc.embedJpg(allBytes[cursor]))
+      cursor += 1
+    }
+  }
+
+  for (const sectionKey of sectionOrder) {
+    const urls = grouped.get(sectionKey)
+    if (!urls || urls.length === 0) continue
     const label = sectionLabels[sectionKey] ?? sectionKey
-    drawSectionHeading(ctx, label, photos.length)
-    await drawSectionPhotos(ctx, photos)
+    drawSectionHeading(ctx, label, urls.length)
+    const images = urls.map((url) => embeddedByUrl.get(url)!).filter((img): img is PDFImage => !!img)
+    await drawSectionPhotos(ctx, images)
     ctx.cursorY -= HEADER_HEIGHT / 8
   }
 

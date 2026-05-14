@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
 import { sections } from '@/config/sections'
@@ -71,6 +71,22 @@ async function handleSubmit() {
 
 async function handleStartAnother() {
   await store.startNewInspection()
+}
+
+const seedBusy = ref(false)
+const seedMessage = ref<string | null>(null)
+
+async function handleSeed100() {
+  seedBusy.value = true
+  seedMessage.value = null
+  try {
+    const added = await store.seedTestPhotos(100)
+    seedMessage.value = `Seeded ${added} test photos.`
+  } catch (err) {
+    seedMessage.value = err instanceof Error ? err.message : 'Seeding failed.'
+  } finally {
+    seedBusy.value = false
+  }
 }
 
 function handleCancel() {
@@ -154,6 +170,18 @@ function handleCancel() {
             @input="updateField('inspection_date', ($event.target as HTMLInputElement).value)"
           />
         </label>
+      </section>
+
+      <section v-if="bypassRequired" class="inspection__seed">
+        <button
+          class="inspection__seed-button"
+          type="button"
+          :disabled="seedBusy"
+          @click="handleSeed100"
+        >
+          {{ seedBusy ? 'Seeding…' : 'Seed 100 Test Photos (clones the first photo)' }}
+        </button>
+        <p v-if="seedMessage" class="inspection__seed-message">{{ seedMessage }}</p>
       </section>
 
       <section class="inspection__sections">
@@ -445,5 +473,32 @@ function handleCancel() {
   font-size: 0.6875rem;
   color: var(--color-text-muted);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.inspection__seed {
+  margin-bottom: var(--space-4);
+}
+
+.inspection__seed-button {
+  width: 100%;
+  background-color: #fbbf24;
+  color: #78350f;
+  border: 1px dashed #92400e;
+  padding: var(--space-3);
+  font-size: 0.875rem;
+  font-weight: 600;
+  border-radius: var(--radius-md);
+}
+
+.inspection__seed-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.inspection__seed-message {
+  margin: var(--space-2) 0 0;
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+  text-align: center;
 }
 </style>
