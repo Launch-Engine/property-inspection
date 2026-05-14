@@ -36,10 +36,11 @@ const photoUrls = computed<Array<{ id: string; url: string }>>(() => {
       if (photo.cloudinary_url) {
         return { id: photo.id, url: photo.cloudinary_url }
       }
-      if (!photo.blob) return null
+      if (!photo.data) return null
       let url = objectUrls.get(photo.id)
       if (!url) {
-        url = URL.createObjectURL(photo.blob)
+        const blob = new Blob([photo.data], { type: photo.mime_type || 'image/jpeg' })
+        url = URL.createObjectURL(blob)
         objectUrls.set(photo.id, url)
       }
       return { id: photo.id, url }

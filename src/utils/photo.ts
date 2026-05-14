@@ -1,8 +1,10 @@
 const TARGET_MAX_DIMENSION = 1600
 const JPEG_QUALITY = 0.82
+const JPEG_MIME = 'image/jpeg'
 
 export interface ResizedPhoto {
-  blob: Blob
+  data: ArrayBuffer
+  mime_type: string
   width: number
   height: number
 }
@@ -25,7 +27,8 @@ export async function resizePhoto(file: File | Blob): Promise<ResizedPhoto> {
   bitmap.close()
 
   const blob = await canvasToBlob(canvas)
-  return { blob, width, height }
+  const data = await blob.arrayBuffer()
+  return { data, mime_type: blob.type || JPEG_MIME, width, height }
 }
 
 function scaleDimensions(srcWidth: number, srcHeight: number) {
@@ -42,18 +45,14 @@ function scaleDimensions(srcWidth: number, srcHeight: number) {
 
 async function canvasToBlob(canvas: OffscreenCanvas | HTMLCanvasElement): Promise<Blob> {
   if (canvas instanceof OffscreenCanvas) {
-    return canvas.convertToBlob({ type: 'image/jpeg', quality: JPEG_QUALITY })
+    return canvas.convertToBlob({ type: JPEG_MIME, quality: JPEG_QUALITY })
   }
 
   return new Promise<Blob>((resolve, reject) => {
     canvas.toBlob(
       (result) => (result ? resolve(result) : reject(new Error('Canvas produced no blob.'))),
-      'image/jpeg',
+      JPEG_MIME,
       JPEG_QUALITY,
     )
   })
-}
-
-export function blobToObjectUrl(blob: Blob): string {
-  return URL.createObjectURL(blob)
 }

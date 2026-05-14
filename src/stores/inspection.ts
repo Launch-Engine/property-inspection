@@ -97,13 +97,14 @@ export const useInspectionStore = defineStore('inspection', () => {
     if (!inspection.value) {
       throw new Error('Cannot add a photo before an inspection is loaded.')
     }
-    const { blob } = await resizePhoto(file)
+    const { data, mime_type } = await resizePhoto(file)
 
     const photo: Photo = {
       id: newUuid(),
       inspection_id: inspection.value.id,
       section_key: sectionKey,
-      blob,
+      data,
+      mime_type,
       upload_status: 'pending',
       captured_at: nowIso(),
     }

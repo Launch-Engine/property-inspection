@@ -35,7 +35,8 @@ export interface Photo {
   id: string
   inspection_id: string
   section_key: SectionKey
-  blob?: Blob
+  data?: ArrayBuffer
+  mime_type?: string
   cloudinary_url?: string
   upload_status: PhotoUploadStatus
   captured_at: string
