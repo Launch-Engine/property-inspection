@@ -11,17 +11,28 @@ const router = useRouter()
 const store = useInspectionStore()
 const { inspection, photosBySection, isLoading, syncProgress, submitError } = storeToRefs(store)
 
+// Test mode bypasses all required-field validation so we can exercise the
+// submit/sync flow without filling out the whole form. Flip the Netlify env
+// var (or use ?test=1 in the URL) to disable validation; remove it later.
+const bypassRequired =
+  import.meta.env.VITE_BYPASS_REQUIRED === 'true' ||
+  new URLSearchParams(window.location.search).get('test') === '1'
+
 onMounted(async () => {
   await store.loadOrStartDraft()
 })
 
-const requiredSectionsMissing = computed(() =>
-  sections.filter((s) => s.required && (photosBySection.value[s.key]?.length ?? 0) < s.minPhotos),
-)
+const requiredSectionsMissing = computed(() => {
+  if (bypassRequired) return []
+  return sections.filter(
+    (s) => s.required && (photosBySection.value[s.key]?.length ?? 0) < s.minPhotos,
+  )
+})
 
 const canSubmit = computed(() => {
   const data = inspection.value
   if (!data) return false
+  if (bypassRequired) return true
   return (
     data.inspector_name.trim() !== '' &&
     data.property_address.trim() !== '' &&
@@ -70,6 +81,9 @@ function handleCancel() {
       <h1 class="inspection__title">Property Inspection – Photo Walkthrough</h1>
       <p class="inspection__intro">
         For each section, take 2-3 photos using your phone camera. Should take about 10-15 minutes.
+      </p>
+      <p v-if="bypassRequired" class="inspection__test-mode" role="status">
+        TEST MODE — all fields and photos are optional
       </p>
     </header>
 
@@ -214,6 +228,18 @@ function handleCancel() {
   margin: 0;
   color: var(--color-text-muted);
   font-size: 0.9375rem;
+}
+
+.inspection__test-mode {
+  margin: var(--space-3) 0 0;
+  padding: var(--space-2) var(--space-3);
+  background-color: #fde68a;
+  color: #78350f;
+  border-radius: var(--radius-md);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  text-align: center;
+  letter-spacing: 0.04em;
 }
 
 .inspection__loading {
