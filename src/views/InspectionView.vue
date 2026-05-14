@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
 import { sections } from '@/config/sections'
@@ -59,11 +59,18 @@ function handleRemovePhoto(photoId: string) {
 
 const isSubmitting = computed(() => syncProgress.value?.in_progress === true)
 const isSynced = computed(() => inspection.value?.status === 'synced')
+const debugMessage = ref<string | null>(null)
 
 async function handleSubmit() {
-  const ok = await store.submitInspection()
-  if (ok) {
-    // Stay on the page so the inspector sees the success state; back to home is one tap away.
+  debugMessage.value = `Submit tapped at ${new Date().toLocaleTimeString()}`
+  try {
+    const ok = await store.submitInspection()
+    debugMessage.value = ok
+      ? `Submit returned true at ${new Date().toLocaleTimeString()}`
+      : `Submit returned false at ${new Date().toLocaleTimeString()} (see error below)`
+  } catch (err) {
+    const message = err instanceof Error ? `${err.name}: ${err.message}` : String(err)
+    debugMessage.value = `Submit threw: ${message}`
   }
 }
 
@@ -176,6 +183,8 @@ function handleCancel() {
         </div>
 
         <p v-if="submitError" class="inspection__submit-error" role="alert">{{ submitError }}</p>
+
+        <p v-if="debugMessage" class="inspection__debug" role="status">{{ debugMessage }}</p>
 
         <p v-if="isSynced" class="inspection__synced" role="status">
           Inspection submitted. All photos uploaded.
@@ -380,5 +389,16 @@ function handleCancel() {
   border-radius: var(--radius-md);
   font-size: 0.875rem;
   text-align: center;
+}
+
+.inspection__debug {
+  margin: 0;
+  padding: var(--space-3);
+  background-color: #e0f2fe;
+  color: #075985;
+  border-radius: var(--radius-md);
+  font-size: 0.8125rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  word-break: break-word;
 }
 </style>
