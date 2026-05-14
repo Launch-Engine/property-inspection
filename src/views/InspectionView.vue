@@ -69,6 +69,10 @@ async function handleSubmit() {
   }
 }
 
+async function handleStartAnother() {
+  await store.startNewInspection()
+}
+
 function handleCancel() {
   router.push({ name: 'home' })
 }
@@ -91,6 +95,22 @@ function handleCancel() {
     </header>
 
     <p v-if="isLoading && !inspection" class="inspection__loading">Loading…</p>
+
+    <section v-else-if="isSynced" class="inspection__success" role="status">
+      <div class="inspection__success-check" aria-hidden="true">✓</div>
+      <h2 class="inspection__success-title">Inspection Submitted</h2>
+      <p class="inspection__success-body">
+        All photos uploaded. The report is being prepared for {{ inspection?.property_address || 'the property' }}.
+      </p>
+      <div class="inspection__success-actions">
+        <button class="inspection__submit" type="button" @click="handleStartAnother">
+          Start Another Inspection
+        </button>
+        <button class="inspection__back" type="button" @click="handleCancel">
+          Back to Home
+        </button>
+      </div>
+    </section>
 
     <template v-else-if="inspection">
       <section class="inspection__metadata">
@@ -179,10 +199,6 @@ function handleCancel() {
         </div>
 
         <p v-if="submitError" class="inspection__submit-error" role="alert">{{ submitError }}</p>
-
-        <p v-if="isSynced" class="inspection__synced" role="status">
-          Inspection submitted. All photos uploaded.
-        </p>
 
         <button
           class="inspection__submit"
@@ -375,14 +391,53 @@ function handleCancel() {
   font-size: 0.875rem;
 }
 
-.inspection__synced {
-  margin: 0;
-  padding: var(--space-3);
-  background-color: #dcfce7;
-  color: #166534;
-  border-radius: var(--radius-md);
-  font-size: 0.875rem;
+.inspection__success {
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-6) var(--space-4);
   text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}
+
+.inspection__success-check {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background-color: var(--color-success);
+  color: white;
+  font-size: 36px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.inspection__success-title {
+  margin: 0;
+  font-size: 1.375rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.inspection__success-body {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 0.9375rem;
+  max-width: 360px;
+}
+
+.inspection__success-actions {
+  width: 100%;
+  max-width: 360px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
 }
 
 .inspection__build {

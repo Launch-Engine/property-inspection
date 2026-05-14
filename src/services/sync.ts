@@ -62,6 +62,10 @@ class InspectionSyncService {
       }
 
       progress.in_progress = false
+      // Emit one final progress event so listeners can drop the spinner. Without
+      // this, syncProgress.in_progress stays true and the Submit button is
+      // stuck on "Submitting…" even though the inspection is already synced.
+      this.emit({ type: 'progress', progress: { ...progress } })
       this.emit({ type: 'complete', uploaded: progress.uploaded, failed: progress.failed })
       return { uploaded: progress.uploaded, failed: progress.failed }
     } finally {
