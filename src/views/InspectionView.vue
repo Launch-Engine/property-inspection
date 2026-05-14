@@ -60,6 +60,11 @@ function handleRemovePhoto(photoId: string) {
 const isSubmitting = computed(() => syncProgress.value?.in_progress === true)
 const isSynced = computed(() => inspection.value?.status === 'synced')
 const debugMessage = ref<string | null>(null)
+const buildVersion = __BUILD_VERSION__
+
+function pingDebug() {
+  debugMessage.value = `Ping at ${new Date().toLocaleTimeString()} — click events work`
+}
 
 async function handleSubmit() {
   debugMessage.value = `Submit tapped at ${new Date().toLocaleTimeString()}`
@@ -92,6 +97,7 @@ function handleCancel() {
       <p v-if="bypassRequired" class="inspection__test-mode" role="status">
         TEST MODE — all fields and photos are optional
       </p>
+      <p class="inspection__build">Build: {{ buildVersion }}</p>
     </header>
 
     <p v-if="isLoading && !inspection" class="inspection__loading">Loading…</p>
@@ -200,6 +206,10 @@ function handleCancel() {
           <span v-else-if="isSynced">Submitted ✓</span>
           <span v-else-if="submitError">Retry Submit</span>
           <span v-else>Submit Inspection</span>
+        </button>
+
+        <button class="inspection__ping" type="button" @click="pingDebug">
+          Tap to test clicks
         </button>
       </footer>
     </template>
@@ -400,5 +410,23 @@ function handleCancel() {
   font-size: 0.8125rem;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   word-break: break-word;
+}
+
+.inspection__build {
+  margin: var(--space-2) 0 0;
+  font-size: 0.6875rem;
+  color: var(--color-text-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.inspection__ping {
+  width: 100%;
+  background-color: #fbbf24;
+  color: #78350f;
+  border: none;
+  padding: var(--space-3);
+  font-size: 0.875rem;
+  font-weight: 600;
+  border-radius: var(--radius-md);
 }
 </style>
