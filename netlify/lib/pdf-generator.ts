@@ -5,6 +5,13 @@ import { sectionLabels, sectionOrder } from './sections'
 import { formatUsDate, formatUsDateTime } from './format'
 import type { InspectionSubmission } from './types'
 
+// Netlify deploys the bundled function under /var/task and preserves the
+// included_files directory structure, so the logo ends up at
+// /var/task/netlify/lib/cfl-logo.png at runtime regardless of where esbuild
+// inlines this file's source. Resolve via process.cwd() so we don't depend on
+// __dirname (which the bundler rewrites to the function's location).
+const LOGO_PATH = join(process.cwd(), 'netlify', 'lib', 'cfl-logo.png')
+
 const PAGE_WIDTH = 612 // US Letter, 8.5"
 const PAGE_HEIGHT = 792 // US Letter, 11"
 const MARGIN = 48
@@ -18,9 +25,8 @@ const TEXT_DARK = rgb(0.10, 0.17, 0.24)
 const TEXT_MUTED = rgb(0.35, 0.42, 0.49)
 const DIVIDER = rgb(0.85, 0.89, 0.93)
 
-// Loaded once at module load; Netlify's included_files config ships the PNG
-// next to the bundled function.
-const logoBytes = readFileSync(join(__dirname, 'cfl-logo.png'))
+// Loaded once at module load.
+const logoBytes = readFileSync(LOGO_PATH)
 
 // Cloudinary delivers transformed JPEGs when we ask for f_jpg in the URL — we
 // rewrite each photo's URL on the fly so pdf-lib never has to decode HEIC, PNG,
