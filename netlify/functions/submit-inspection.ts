@@ -1,6 +1,6 @@
 import type { Context } from '@netlify/functions'
 import { generateInspectionPdf } from '../lib/pdf-generator'
-import { attachFileToItem, createInspectionItem } from '../lib/monday-client'
+import { attachFileToItem, createInspectionItem, findItemByInspectionId } from '../lib/monday-client'
 import type { InspectionSubmission } from '../lib/types'
 
 const REQUIRED_ENV = [
@@ -87,6 +87,26 @@ export default async (request: Request, _context: Context): Promise<Response> =>
   const submission = payload
 
   try {
+    // Idempotency: if a Monday item already exists for this inspection_id,
+    // return it instead of creating a duplicate. Catches double-taps, network
+    // retries, and any other path that fires the function twice for the same
+    // inspection.
+    const existing = await findItemByInspectionId({
+      token: process.env.MONDAY_API_TOKEN!,
+      board_id: process.env.MONDAY_BOARD_ID!,
+      inspection_id_column: COLUMN_IDS.inspection_id,
+      inspection_id: submission.inspection_id,
+    })
+
+    if (existing) {
+      return jsonResponse(200, {
+        ok: true,
+        monday_item_id: existing.item_id,
+        photo_count: submission.photos.length,
+        deduplicated: true,
+      })
+    }
+
     const pdfBytes = await generateInspectionPdf(submission)
 
     const itemName =

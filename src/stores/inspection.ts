@@ -28,6 +28,11 @@ export const useInspectionStore = defineStore('inspection', () => {
   const isLoading = ref(false)
   const syncProgress = ref<SyncProgress | null>(null)
   const submitError = ref<string | null>(null)
+  // Tracks the entire submitInspection() lifetime — covers the gap between
+  // Cloudinary upload finishing (syncProgress.in_progress flips false) and the
+  // /api/inspections call returning, which is where a double-tap previously
+  // created duplicate Monday items.
+  const isSubmitting = ref(false)
 
   const photosBySection = computed<Record<SectionKey, Photo[]>>(() => {
     const grouped = Object.fromEntries(
@@ -189,10 +194,13 @@ export const useInspectionStore = defineStore('inspection', () => {
 
   async function submitInspection(): Promise<boolean> {
     if (!inspection.value) return false
+    if (isSubmitting.value) return false
+    isSubmitting.value = true
     submitError.value = null
 
     if (!cloudinaryConfigured()) {
       submitError.value = 'Photo storage is not configured yet. Add Cloudinary credentials.'
+      isSubmitting.value = false
       return false
     }
 
@@ -246,6 +254,7 @@ export const useInspectionStore = defineStore('inspection', () => {
       return false
     } finally {
       unsubscribe()
+      isSubmitting.value = false
     }
   }
 
@@ -265,6 +274,7 @@ export const useInspectionStore = defineStore('inspection', () => {
     photos,
     photosBySection,
     isLoading,
+    isSubmitting,
     syncProgress,
     submitError,
     startNewInspection,

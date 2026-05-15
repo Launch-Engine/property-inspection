@@ -9,7 +9,7 @@ import InspectionSection from '@/components/InspectionSection.vue'
 
 const router = useRouter()
 const store = useInspectionStore()
-const { inspection, photosBySection, isLoading, syncProgress, submitError } = storeToRefs(store)
+const { inspection, photosBySection, isLoading, isSubmitting, syncProgress, submitError } = storeToRefs(store)
 
 // Test mode bypasses all required-field validation so we can exercise the
 // submit/sync flow without filling out the whole form. Flip the Netlify env
@@ -57,7 +57,6 @@ function handleRemovePhoto(photoId: string) {
   store.removePhoto(photoId)
 }
 
-const isSubmitting = computed(() => syncProgress.value?.in_progress === true)
 const isSynced = computed(() => inspection.value?.status === 'synced')
 const buildVersion = __BUILD_VERSION__
 

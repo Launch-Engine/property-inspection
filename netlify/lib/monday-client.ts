@@ -41,6 +41,38 @@ interface MondayGraphQLResponse<T> {
   error_message?: string
 }
 
+export async function findItemByInspectionId(options: {
+  token: string
+  board_id: string
+  inspection_id_column: string
+  inspection_id: string
+}): Promise<{ item_id: string } | null> {
+  const query = `
+    query FindInspection($board_id: ID!, $column_id: String!, $value: String!) {
+      items_page_by_column_values(
+        board_id: $board_id
+        columns: [{ column_id: $column_id, column_values: [$value] }]
+        limit: 1
+      ) {
+        items { id }
+      }
+    }
+  `
+
+  const data = await monday<{ items_page_by_column_values: { items: Array<{ id: string }> } }>(
+    query,
+    {
+      board_id: options.board_id,
+      column_id: options.inspection_id_column,
+      value: options.inspection_id,
+    },
+    options.token,
+  )
+
+  const existing = data.items_page_by_column_values.items[0]
+  return existing ? { item_id: existing.id } : null
+}
+
 async function monday<T>(query: string, variables: Record<string, unknown>, token: string): Promise<T> {
   const response = await fetch(MONDAY_API_URL, {
     method: 'POST',
