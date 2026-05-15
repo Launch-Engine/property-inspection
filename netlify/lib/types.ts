@@ -10,6 +10,7 @@ export interface InspectionSubmission {
   inspector_name: string
   property_address: string
   inspection_date: string
+  comments_by_section?: Record<string, string>
   photos: SubmittedPhoto[]
 }
 

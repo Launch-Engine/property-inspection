@@ -5,6 +5,7 @@ import type { Photo, SectionConfig } from '@/types'
 interface Props {
   section: SectionConfig
   photos: Photo[]
+  comment: string
 }
 
 const props = defineProps<Props>()
@@ -12,6 +13,7 @@ const props = defineProps<Props>()
 const emit = defineEmits<{
   'add-photo': [file: File]
   'remove-photo': [photoId: string]
+  'update-comment': [value: string]
 }>()
 
 const fileInput = ref<HTMLInputElement | null>(null)
@@ -98,6 +100,11 @@ async function handleFileChange(event: Event) {
 function handleRemove(photoId: string) {
   emit('remove-photo', photoId)
 }
+
+function handleCommentInput(event: Event) {
+  const target = event.target as HTMLTextAreaElement
+  emit('update-comment', target.value)
+}
 </script>
 
 <template>
@@ -148,6 +155,17 @@ function handleRemove(photoId: string) {
     <p v-else class="section__empty">No photos yet.</p>
 
     <p v-if="errorMessage" class="section__error" role="alert">{{ errorMessage }}</p>
+
+    <label class="section__comment">
+      <span class="section__comment-label">Notes (optional)</span>
+      <textarea
+        class="section__comment-input"
+        rows="2"
+        placeholder="Anything to flag for this room?"
+        :value="comment"
+        @input="handleCommentInput"
+      />
+    </label>
 
     <input
       ref="fileInput"
@@ -298,6 +316,36 @@ function handleRemove(photoId: string) {
   margin: 0 0 var(--space-3);
   font-size: 0.875rem;
   color: var(--color-danger);
+}
+
+.section__comment {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-bottom: var(--space-3);
+}
+
+.section__comment-label {
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+}
+
+.section__comment-input {
+  width: 100%;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  font-size: 1rem;
+  resize: vertical;
+  min-height: 64px;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.section__comment-input:focus {
+  border-color: var(--color-accent);
 }
 
 .section__file-input {

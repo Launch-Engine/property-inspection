@@ -57,6 +57,10 @@ function handleRemovePhoto(photoId: string) {
   store.removePhoto(photoId)
 }
 
+function handleUpdateComment(key: SectionKey, value: string) {
+  store.updateSectionComment(key, value)
+}
+
 const isSynced = computed(() => inspection.value?.status === 'synced')
 const buildVersion = __BUILD_VERSION__
 
@@ -189,8 +193,10 @@ function handleCancel() {
           :key="section.key"
           :section="section"
           :photos="photosBySection[section.key] ?? []"
+          :comment="inspection.comments_by_section?.[section.key] ?? ''"
           @add-photo="(file) => handleAddPhoto(section.key, file)"
           @remove-photo="handleRemovePhoto"
+          @update-comment="(value) => handleUpdateComment(section.key, value)"
         />
       </section>
 

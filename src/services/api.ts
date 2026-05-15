@@ -8,6 +8,7 @@ interface SubmissionPayload {
   inspector_name: string
   property_address: string
   inspection_date: string
+  comments_by_section: Record<string, string>
   photos: Array<{
     id: string
     section_key: string
@@ -35,11 +36,20 @@ export async function submitInspectionToApi(
     throw new Error('VITE_INSPECTION_API_KEY is not set.')
   }
 
+  // Only send comments that aren't empty/whitespace — keeps the payload small
+  // and means the PDF won't render empty "Notes:" blocks under bare sections.
+  const trimmedComments = Object.fromEntries(
+    Object.entries(inspection.comments_by_section ?? {})
+      .map(([k, v]) => [k, (v ?? '').trim()])
+      .filter(([, v]) => v.length > 0),
+  )
+
   const payload: SubmissionPayload = {
     inspection_id: inspection.id,
     inspector_name: inspection.inspector_name,
     property_address: inspection.property_address,
     inspection_date: inspection.inspection_date,
+    comments_by_section: trimmedComments,
     photos: photos
       .filter((p) => p.cloudinary_url)
       .map((p) => ({

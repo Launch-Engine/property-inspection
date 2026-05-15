@@ -12,6 +12,9 @@ import type { Inspection, Photo, SectionKey } from '@/types'
 const emptyPhotosBySection = () =>
   Object.fromEntries(sections.map((s) => [s.key, [] as string[]])) as Record<SectionKey, string[]>
 
+const emptyCommentsBySection = () =>
+  Object.fromEntries(sections.map((s) => [s.key, ''])) as Record<SectionKey, string>
+
 const todayIsoDate = () => new Date().toISOString().slice(0, 10)
 const nowIso = () => new Date().toISOString()
 
@@ -57,6 +60,7 @@ export const useInspectionStore = defineStore('inspection', () => {
         inspection_date: todayIsoDate(),
         status: 'draft',
         photos_by_section: emptyPhotosBySection(),
+        comments_by_section: emptyCommentsBySection(),
         created_at: now,
         updated_at: now,
       }
@@ -76,6 +80,11 @@ export const useInspectionStore = defineStore('inspection', () => {
         inspection.value = null
         photos.value = []
         return
+      }
+      // Back-fill comments_by_section for drafts saved before the field
+      // existed so the form always has a writable string per section.
+      if (!record.comments_by_section) {
+        record.comments_by_section = emptyCommentsBySection()
       }
       inspection.value = record
       photos.value = await db.photos.where('inspection_id').equals(id).toArray()
@@ -108,6 +117,13 @@ export const useInspectionStore = defineStore('inspection', () => {
     }
     inspection.value = updated
     await db.inspections.put(plainInspection(updated))
+  }
+
+  async function updateSectionComment(sectionKey: SectionKey, comment: string) {
+    if (!inspection.value) return
+    inspection.value.comments_by_section[sectionKey] = comment
+    inspection.value.updated_at = nowIso()
+    await db.inspections.put(plainInspection(inspection.value))
   }
 
   async function addPhotoFromFile(sectionKey: SectionKey, file: File): Promise<void> {
@@ -281,6 +297,7 @@ export const useInspectionStore = defineStore('inspection', () => {
     loadInspection,
     loadOrStartDraft,
     updateMetadata,
+    updateSectionComment,
     addPhotoFromFile,
     seedTestPhotos,
     removePhoto,

@@ -43,6 +43,12 @@ function validatePayload(payload: unknown): payload is InspectionSubmission {
   if (typeof p.property_address !== 'string') return false
   if (typeof p.inspection_date !== 'string') return false
   if (!Array.isArray(p.photos)) return false
+  if (p.comments_by_section !== undefined) {
+    if (typeof p.comments_by_section !== 'object' || p.comments_by_section === null) return false
+    for (const value of Object.values(p.comments_by_section)) {
+      if (typeof value !== 'string') return false
+    }
+  }
   return p.photos.every(
     (photo) =>
       photo &&

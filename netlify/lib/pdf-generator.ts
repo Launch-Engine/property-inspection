@@ -135,6 +135,56 @@ function fitImageBox(image: PDFImage, maxWidth: number, maxHeight: number) {
   return { width: image.width * scale, height: image.height * scale }
 }
 
+const COMMENT_FONT_SIZE = 10
+const COMMENT_LINE_HEIGHT = 13
+
+function wrapLines(text: string, font: PDFFont, maxWidth: number): string[] {
+  const lines: string[] = []
+  for (const rawLine of text.split(/\r?\n/)) {
+    const words = rawLine.split(/\s+/).filter(Boolean)
+    if (words.length === 0) {
+      lines.push('')
+      continue
+    }
+    let current = ''
+    for (const word of words) {
+      const candidate = current ? `${current} ${word}` : word
+      if (font.widthOfTextAtSize(candidate, COMMENT_FONT_SIZE) > maxWidth && current) {
+        lines.push(current)
+        current = word
+      } else {
+        current = candidate
+      }
+    }
+    if (current) lines.push(current)
+  }
+  return lines
+}
+
+function drawSectionComment(ctx: DrawContext, comment: string) {
+  const trimmed = comment.trim()
+  if (!trimmed) return
+
+  const usableWidth = PAGE_WIDTH - MARGIN * 2
+  const lines = wrapLines(trimmed, ctx.font, usableWidth)
+
+  for (const line of lines) {
+    if (ctx.cursorY - COMMENT_LINE_HEIGHT < MARGIN) {
+      ctx.page = newPage(ctx.doc)
+      ctx.cursorY = PAGE_HEIGHT - MARGIN
+    }
+    drawText(ctx.page, line, {
+      x: MARGIN,
+      y: ctx.cursorY - COMMENT_FONT_SIZE,
+      size: COMMENT_FONT_SIZE,
+      font: ctx.font,
+      color: rgb(0.32, 0.39, 0.49),
+    })
+    ctx.cursorY -= COMMENT_LINE_HEIGHT
+  }
+  ctx.cursorY -= 6
+}
+
 async function drawSectionPhotos(
   ctx: DrawContext,
   photoImages: PDFImage[],
@@ -213,13 +263,27 @@ export async function generateInspectionPdf(submission: InspectionSubmission): P
     }
   }
 
+  // Sections appear in the PDF when they have photos OR a comment. A
+  // commented-but-photoless section is still useful (e.g., "Bedroom 4 — N/A,
+  // unit is a 3-bed").
+  const comments = submission.comments_by_section ?? {}
+  const sectionKeys = new Set<string>([...grouped.keys()])
+  for (const key of Object.keys(comments)) {
+    if (comments[key]?.trim()) sectionKeys.add(key)
+  }
+
   for (const sectionKey of sectionOrder) {
-    const urls = grouped.get(sectionKey)
-    if (!urls || urls.length === 0) continue
+    if (!sectionKeys.has(sectionKey)) continue
+    const urls = grouped.get(sectionKey) ?? []
     const label = sectionLabels[sectionKey] ?? sectionKey
     drawSectionHeading(ctx, label, urls.length)
-    const images = urls.map((url) => embeddedByUrl.get(url)!).filter((img): img is PDFImage => !!img)
-    await drawSectionPhotos(ctx, images)
+    drawSectionComment(ctx, comments[sectionKey] ?? '')
+    if (urls.length > 0) {
+      const images = urls
+        .map((url) => embeddedByUrl.get(url))
+        .filter((img): img is PDFImage => !!img)
+      await drawSectionPhotos(ctx, images)
+    }
     ctx.cursorY -= HEADER_HEIGHT / 8
   }
 

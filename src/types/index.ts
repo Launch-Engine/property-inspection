@@ -49,6 +49,7 @@ export interface Inspection {
   inspection_date: string
   status: InspectionStatus
   photos_by_section: Record<SectionKey, string[]>
+  comments_by_section: Record<SectionKey, string>
   created_at: string
   updated_at: string
 }
