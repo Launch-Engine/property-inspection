@@ -20,7 +20,6 @@ const PHOTO_GAP = 12
 // CFL Property Management brand palette.
 const BRAND_BLUE = rgb(66 / 255, 147 / 255, 201 / 255)        // #4293c9
 const BRAND_BLUE_DEEP = rgb(31 / 255, 79 / 255, 115 / 255)    // #1f4f73
-const BRAND_GREEN = rgb(101 / 255, 188 / 255, 123 / 255)      // #65bc7b
 const TEXT_DARK = rgb(0.10, 0.17, 0.24)
 const TEXT_MUTED = rgb(0.35, 0.42, 0.49)
 const DIVIDER = rgb(0.85, 0.89, 0.93)
@@ -92,38 +91,31 @@ function newPage(doc: PDFDocument): PDFPage {
 }
 
 function drawHeader(ctx: DrawContext, submission: InspectionSubmission, logo: PDFImage) {
-  // Brand band along the top of the page anchors every report in CFL blue.
+  // Soft off-white band that matches the logo background so the CFL mark
+  // sits cleanly without a contrasting pill behind it. Blue hairline rule
+  // underneath ties it back to the brand.
   const bandHeight = 76
   ctx.page.drawRectangle({
     x: 0,
     y: PAGE_HEIGHT - bandHeight,
     width: PAGE_WIDTH,
     height: bandHeight,
-    color: BRAND_BLUE,
+    color: rgb(0.97, 0.98, 0.99),
   })
   ctx.page.drawRectangle({
     x: 0,
-    y: PAGE_HEIGHT - bandHeight - 3,
+    y: PAGE_HEIGHT - bandHeight - 2,
     width: PAGE_WIDTH,
-    height: 3,
-    color: BRAND_GREEN,
+    height: 2,
+    color: BRAND_BLUE,
   })
 
-  // Logo on a white pill so the colored CFL mark stays readable on blue.
+  // Logo aligned left inside the band — no pill needed now that the
+  // background is light.
   const logoMaxHeight = 44
   const logoScale = logoMaxHeight / logo.height
   const logoWidth = logo.width * logoScale
   const logoHeight = logo.height * logoScale
-  const pillPadX = 12
-  const pillPadY = 8
-  ctx.page.drawRectangle({
-    x: MARGIN - pillPadX,
-    y: PAGE_HEIGHT - bandHeight + (bandHeight - logoHeight) / 2 - pillPadY,
-    width: logoWidth + pillPadX * 2,
-    height: logoHeight + pillPadY * 2,
-    color: rgb(1, 1, 1),
-    opacity: 0.95,
-  })
   ctx.page.drawImage(logo, {
     x: MARGIN,
     y: PAGE_HEIGHT - bandHeight + (bandHeight - logoHeight) / 2,
@@ -131,7 +123,8 @@ function drawHeader(ctx: DrawContext, submission: InspectionSubmission, logo: PD
     height: logoHeight,
   })
 
-  // "Property Inspection Report" label, right-aligned inside the band.
+  // "PROPERTY INSPECTION REPORT" right-aligned in CFL blue to stay legible
+  // against the light band.
   const reportLabel = 'PROPERTY INSPECTION REPORT'
   const labelSize = 10
   const labelWidth = ctx.bold.widthOfTextAtSize(reportLabel, labelSize)
@@ -140,7 +133,7 @@ function drawHeader(ctx: DrawContext, submission: InspectionSubmission, logo: PD
     y: PAGE_HEIGHT - bandHeight / 2 - 4,
     size: labelSize,
     font: ctx.bold,
-    color: rgb(1, 1, 1),
+    color: BRAND_BLUE_DEEP,
   })
 
   // Metadata block below the band.
@@ -255,18 +248,24 @@ function drawSectionComment(ctx: DrawContext, comment: string) {
   const trimmed = comment.trim()
   if (!trimmed) return
 
-  const indent = 16
-  const usableWidth = PAGE_WIDTH - MARGIN * 2 - indent
+  const usableWidth = PAGE_WIDTH - MARGIN * 2
   const lines = wrapLines(trimmed, ctx.font, usableWidth)
 
-  // Subtle "NOTES" label so the comment block reads as a deliberate annotation.
+  // "NOTES" label sits on its own line above the comment text.
+  const labelSize = 8
+  const labelLineHeight = 12
+  if (ctx.cursorY - labelLineHeight < MARGIN) {
+    ctx.page = newPage(ctx.doc)
+    ctx.cursorY = PAGE_HEIGHT - MARGIN
+  }
   drawText(ctx.page, 'NOTES', {
     x: MARGIN,
-    y: ctx.cursorY - COMMENT_FONT_SIZE,
-    size: 7,
+    y: ctx.cursorY - labelSize,
+    size: labelSize,
     font: ctx.bold,
     color: BRAND_BLUE,
   })
+  ctx.cursorY -= labelLineHeight + 2
 
   for (const line of lines) {
     if (ctx.cursorY - COMMENT_LINE_HEIGHT < MARGIN) {
@@ -274,7 +273,7 @@ function drawSectionComment(ctx: DrawContext, comment: string) {
       ctx.cursorY = PAGE_HEIGHT - MARGIN
     }
     drawText(ctx.page, line, {
-      x: MARGIN + indent,
+      x: MARGIN,
       y: ctx.cursorY - COMMENT_FONT_SIZE,
       size: COMMENT_FONT_SIZE,
       font: ctx.font,
