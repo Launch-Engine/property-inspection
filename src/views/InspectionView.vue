@@ -257,6 +257,7 @@ function handleCancel() {
 <style scoped>
 .inspection {
   padding: var(--space-4);
+  padding-top: calc(var(--space-4) + env(safe-area-inset-top));
   padding-bottom: calc(var(--space-6) + env(safe-area-inset-bottom));
   max-width: 720px;
   margin: 0 auto;
@@ -272,8 +273,11 @@ function handleCancel() {
   color: var(--color-brand);
   font-size: 0.9375rem;
   font-weight: 600;
-  padding: 0;
-  margin-bottom: var(--space-3);
+  padding: var(--space-2) var(--space-2) var(--space-2) 0;
+  margin: 0 0 var(--space-3) calc(var(--space-2) * -1);
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
 }
 
 .inspection__logo {

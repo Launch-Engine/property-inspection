@@ -18,7 +18,6 @@ function startInspection() {
           class="home__logo"
         />
         <h1 class="home__title">Property Inspection</h1>
-        <p class="home__subtitle">Photo walkthrough for your inspector</p>
       </header>
 
       <section class="home__actions">
@@ -81,12 +80,6 @@ function startInspection() {
   margin: var(--space-3) 0 0;
   color: var(--color-text);
   letter-spacing: -0.01em;
-}
-
-.home__subtitle {
-  margin: 0;
-  color: var(--color-text-muted);
-  font-size: 0.9375rem;
 }
 
 .home__actions {
