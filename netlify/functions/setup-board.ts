@@ -69,7 +69,7 @@ export default async (request: Request, _context: Context): Promise<Response> =>
     return json(500, { error: 'MONDAY_API_TOKEN is not set on this site.' })
   }
 
-  let body: { workspace_name?: string; board_name?: string } = {}
+  let body: { workspace_name?: string; board_name?: string; dry_run?: boolean } = {}
   try {
     body = (await request.json()) as typeof body
   } catch {
@@ -86,6 +86,22 @@ export default async (request: Request, _context: Context): Promise<Response> =>
       {},
       token,
     )
+
+    // Dry run: just return the account we'd be writing into. Use this before
+    // committing to creating workspaces/boards so we don't pollute the wrong
+    // Monday account when the token is misconfigured.
+    if (body.dry_run) {
+      return json(200, {
+        ok: true,
+        dry_run: true,
+        account: {
+          id: me.me.account.id,
+          name: me.me.account.name,
+          slug: me.me.account.slug,
+        },
+        user: { id: me.me.id, name: me.me.name, email: me.me.email },
+      })
+    }
 
     // 2. Create the workspace.
     const ws = await monday<{ create_workspace: { id: string; name: string } }>(
