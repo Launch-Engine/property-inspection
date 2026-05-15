@@ -42,6 +42,17 @@ export interface Photo {
   captured_at: string
 }
 
+export interface Walkthrough {
+  inspection_id: string
+  data?: ArrayBuffer
+  mime_type?: string
+  duration_seconds: number
+  cloudinary_url?: string
+  cloudinary_public_id?: string
+  upload_status: PhotoUploadStatus
+  captured_at: string
+}
+
 export interface Inspection {
   id: string
   inspector_name: string
@@ -50,6 +61,7 @@ export interface Inspection {
   status: InspectionStatus
   photos_by_section: Record<SectionKey, string[]>
   comments_by_section: Record<SectionKey, string>
+  has_walkthrough: boolean
   created_at: string
   updated_at: string
 }

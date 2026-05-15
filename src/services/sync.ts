@@ -1,10 +1,11 @@
 import { db } from '@/db'
-import { uploadToCloudinary } from '@/utils/cloudinary'
-import type { Inspection, Photo } from '@/types'
+import { uploadToCloudinary, uploadVideoToCloudinary } from '@/utils/cloudinary'
+import type { Inspection, Photo, Walkthrough } from '@/types'
 
 const MAX_ATTEMPTS = 3
 const BACKOFF_MS = [0, 1500, 4000]
 const UPLOAD_CONCURRENCY = 5
+const WALKTHROUGH_MAX_ATTEMPTS = 2
 
 export interface SyncProgress {
   total: number
@@ -13,11 +14,20 @@ export interface SyncProgress {
   in_progress: boolean
 }
 
+export interface WalkthroughProgress {
+  uploaded_bytes: number
+  total_bytes: number
+  in_progress: boolean
+}
+
 export type SyncEvent =
   | { type: 'progress'; progress: SyncProgress }
   | { type: 'photo_uploaded'; photo_id: string; secure_url: string }
   | { type: 'photo_failed'; photo_id: string; error: string }
   | { type: 'complete'; uploaded: number; failed: number }
+  | { type: 'walkthrough_progress'; progress: WalkthroughProgress }
+  | { type: 'walkthrough_uploaded'; secure_url: string; public_id: string }
+  | { type: 'walkthrough_failed'; error: string }
 
 type Listener = (event: SyncEvent) => void
 
@@ -83,6 +93,84 @@ class InspectionSyncService {
     } finally {
       this.isRunning = false
     }
+  }
+
+  async uploadWalkthrough(
+    inspection: Inspection,
+  ): Promise<{ uploaded: boolean; error?: string }> {
+    const record = await db.walkthroughs.get(inspection.id)
+    if (!record) {
+      return { uploaded: false, error: 'No walkthrough video found for this inspection.' }
+    }
+    if (record.upload_status === 'uploaded' && record.cloudinary_url) {
+      // Already uploaded — idempotent retry shortcut.
+      this.emit({
+        type: 'walkthrough_uploaded',
+        secure_url: record.cloudinary_url,
+        public_id: record.cloudinary_public_id || '',
+      })
+      return { uploaded: true }
+    }
+    if (!record.data) {
+      await db.walkthroughs.update(inspection.id, { upload_status: 'failed' })
+      this.emit({ type: 'walkthrough_failed', error: 'Walkthrough video bytes are missing.' })
+      return { uploaded: false, error: 'Walkthrough video bytes are missing.' }
+    }
+
+    await db.walkthroughs.update(inspection.id, { upload_status: 'uploading' })
+    const total = record.data.byteLength
+    this.emit({
+      type: 'walkthrough_progress',
+      progress: { uploaded_bytes: 0, total_bytes: total, in_progress: true },
+    })
+
+    let lastError = 'Unknown walkthrough upload error.'
+    for (let attempt = 0; attempt < WALKTHROUGH_MAX_ATTEMPTS; attempt += 1) {
+      if (attempt > 0) await sleep(BACKOFF_MS[attempt] ?? 4000)
+      try {
+        const result = await uploadVideoToCloudinary({
+          data: record.data,
+          mime_type: record.mime_type || 'video/mp4',
+          folder: `property-inspection/${inspection.id}`,
+          context: {
+            kind: 'walkthrough',
+            inspection_id: inspection.id,
+            captured_at: record.captured_at,
+          },
+          onProgress: (uploaded, total) => {
+            this.emit({
+              type: 'walkthrough_progress',
+              progress: { uploaded_bytes: uploaded, total_bytes: total, in_progress: true },
+            })
+          },
+        })
+        await db.walkthroughs.update(inspection.id, {
+          upload_status: 'uploaded',
+          cloudinary_url: result.secure_url,
+          cloudinary_public_id: result.public_id,
+        })
+        this.emit({
+          type: 'walkthrough_progress',
+          progress: { uploaded_bytes: total, total_bytes: total, in_progress: false },
+        })
+        this.emit({
+          type: 'walkthrough_uploaded',
+          secure_url: result.secure_url,
+          public_id: result.public_id,
+        })
+        return { uploaded: true }
+      } catch (err) {
+        lastError = err instanceof Error ? err.message : String(err)
+      }
+    }
+
+    await db.walkthroughs.update(inspection.id, { upload_status: 'failed' })
+    this.emit({
+      type: 'walkthrough_progress',
+      progress: { uploaded_bytes: 0, total_bytes: total, in_progress: false },
+    })
+    this.emit({ type: 'walkthrough_failed', error: lastError })
+    return { uploaded: false, error: lastError }
   }
 
   private async uploadOne(photo: Photo, inspection: Inspection): Promise<boolean> {

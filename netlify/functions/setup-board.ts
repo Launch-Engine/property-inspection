@@ -31,7 +31,7 @@ interface CreateColumnInput {
   key: string
   title: string
   description: string
-  type: 'text' | 'date' | 'status' | 'file' | 'numbers'
+  type: 'text' | 'date' | 'status' | 'file' | 'numbers' | 'link'
 }
 
 const COLUMNS_TO_CREATE: CreateColumnInput[] = [
@@ -39,6 +39,7 @@ const COLUMNS_TO_CREATE: CreateColumnInput[] = [
   { key: 'inspection_date', title: 'Inspection Date', description: 'Date the inspection was performed', type: 'date' },
   { key: 'status', title: 'Status', description: 'Review status of the inspection submission', type: 'status' },
   { key: 'pdf_report', title: 'PDF Report', description: 'Generated inspection report PDF', type: 'file' },
+  { key: 'walkthrough_video', title: 'Walkthrough Video', description: 'Cloudinary URL for the walkthrough video', type: 'link' },
   { key: 'photo_count', title: 'Photo Count', description: 'Total number of photos in this inspection', type: 'numbers' },
   { key: 'submitted_at', title: 'Submitted At', description: 'When the inspection was synced from the PWA', type: 'date' },
   { key: 'inspection_id', title: 'Inspection ID', description: 'Client-generated UUID for de-duplication on retry', type: 'text' },
@@ -157,6 +158,7 @@ export default async (request: Request, _context: Context): Promise<Response> =>
         MONDAY_COL_INSPECTION_DATE: columnIds.inspection_date,
         MONDAY_COL_STATUS: columnIds.status,
         MONDAY_COL_PDF_REPORT: columnIds.pdf_report,
+        MONDAY_COL_WALKTHROUGH_VIDEO: columnIds.walkthrough_video,
         MONDAY_COL_PHOTO_COUNT: columnIds.photo_count,
         MONDAY_COL_SUBMITTED_AT: columnIds.submitted_at,
         MONDAY_COL_INSPECTION_ID: columnIds.inspection_id,

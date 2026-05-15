@@ -1,9 +1,10 @@
 import Dexie, { type Table } from 'dexie'
-import type { Inspection, Photo } from '@/types'
+import type { Inspection, Photo, Walkthrough } from '@/types'
 
 class InspectionDatabase extends Dexie {
   inspections!: Table<Inspection, string>
   photos!: Table<Photo, string>
+  walkthroughs!: Table<Walkthrough, string>
 
   constructor() {
     super('property_inspection')
@@ -22,6 +23,14 @@ class InspectionDatabase extends Dexie {
         photos: 'id, inspection_id, section_key, upload_status, captured_at',
       })
       .upgrade((tx) => tx.table('photos').clear())
+
+    // v3: added the walkthrough video table. One row per inspection, keyed by
+    // inspection_id so capture/replace is a simple put-and-replace.
+    this.version(3).stores({
+      inspections: 'id, status, updated_at',
+      photos: 'id, inspection_id, section_key, upload_status, captured_at',
+      walkthroughs: 'inspection_id, upload_status, captured_at',
+    })
   }
 }
 

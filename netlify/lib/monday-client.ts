@@ -8,6 +8,7 @@ interface CreateItemColumns {
   photo_count?: number
   submitted_at_iso?: string
   inspection_id?: string
+  walkthrough_url?: string
 }
 
 interface CreateItemOptions {
@@ -22,6 +23,7 @@ interface CreateItemOptions {
     photo_count: string
     submitted_at: string
     inspection_id: string
+    walkthrough_video?: string
   }
   columns: CreateItemColumns
 }
@@ -115,6 +117,9 @@ export async function createInspectionItem(options: CreateItemOptions): Promise<
     column_values[c.submitted_at] = { date: isoToMondayDate(values.submitted_at_iso) }
   }
   if (values.inspection_id) column_values[c.inspection_id] = values.inspection_id
+  if (values.walkthrough_url && c.walkthrough_video) {
+    column_values[c.walkthrough_video] = { url: values.walkthrough_url, text: 'Watch walkthrough' }
+  }
 
   const query = `
     mutation CreateInspectionItem(

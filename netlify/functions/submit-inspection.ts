@@ -21,6 +21,7 @@ const COLUMN_IDS = {
   photo_count: process.env.MONDAY_COL_PHOTO_COUNT || 'numeric_mm3by75s',
   submitted_at: process.env.MONDAY_COL_SUBMITTED_AT || 'date_mm3btshw',
   inspection_id: process.env.MONDAY_COL_INSPECTION_ID || 'text_mm3bjzx9',
+  walkthrough_video: process.env.MONDAY_COL_WALKTHROUGH_VIDEO || '',
 }
 
 function jsonResponse(status: number, body: unknown): Response {
@@ -52,6 +53,13 @@ function validatePayload(payload: unknown): payload is InspectionSubmission {
     for (const value of Object.values(p.comments_by_section)) {
       if (typeof value !== 'string') return false
     }
+  }
+  if (p.walkthrough !== undefined) {
+    const w = p.walkthrough
+    if (!w || typeof w !== 'object') return false
+    if (typeof w.cloudinary_url !== 'string' || w.cloudinary_url.length === 0) return false
+    if (typeof w.duration_seconds !== 'number' || w.duration_seconds <= 0) return false
+    if (w.cloudinary_public_id !== undefined && typeof w.cloudinary_public_id !== 'string') return false
   }
   return p.photos.every(
     (photo) =>
@@ -126,7 +134,10 @@ export default async (request: Request, _context: Context): Promise<Response> =>
       token: process.env.MONDAY_API_TOKEN!,
       board_id: process.env.MONDAY_BOARD_ID!,
       item_name: itemName,
-      column_ids: COLUMN_IDS,
+      column_ids: {
+        ...COLUMN_IDS,
+        walkthrough_video: COLUMN_IDS.walkthrough_video || undefined,
+      },
       columns: {
         inspector: submission.inspector_name || undefined,
         inspection_date: submission.inspection_date || undefined,
@@ -134,6 +145,7 @@ export default async (request: Request, _context: Context): Promise<Response> =>
         photo_count: submission.photos.length,
         submitted_at_iso: new Date().toISOString(),
         inspection_id: submission.inspection_id,
+        walkthrough_url: submission.walkthrough?.cloudinary_url,
       },
     })
 

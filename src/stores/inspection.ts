@@ -4,10 +4,11 @@ import { db } from '@/db'
 import { sections } from '@/config/sections'
 import { newUuid } from '@/utils/uuid'
 import { resizePhoto } from '@/utils/photo'
-import { inspectionSync, type SyncProgress } from '@/services/sync'
+import { validateVideo, type VideoValidationResult } from '@/utils/video'
+import { inspectionSync, type SyncProgress, type WalkthroughProgress } from '@/services/sync'
 import { submitInspectionToApi, inspectionApiConfigured } from '@/services/api'
 import { cloudinaryConfigured } from '@/utils/cloudinary'
-import type { Inspection, Photo, SectionKey } from '@/types'
+import type { Inspection, Photo, SectionKey, Walkthrough } from '@/types'
 
 const emptyPhotosBySection = () =>
   Object.fromEntries(sections.map((s) => [s.key, [] as string[]])) as Record<SectionKey, string[]>
@@ -28,8 +29,10 @@ const plainInspection = (record: Inspection): Inspection =>
 export const useInspectionStore = defineStore('inspection', () => {
   const inspection = ref<Inspection | null>(null)
   const photos = ref<Photo[]>([])
+  const walkthrough = ref<Walkthrough | null>(null)
   const isLoading = ref(false)
   const syncProgress = ref<SyncProgress | null>(null)
+  const walkthroughProgress = ref<WalkthroughProgress | null>(null)
   const submitError = ref<string | null>(null)
   // Tracks the entire submitInspection() lifetime — covers the gap between
   // Cloudinary upload finishing (syncProgress.in_progress flips false) and the
@@ -61,12 +64,14 @@ export const useInspectionStore = defineStore('inspection', () => {
         status: 'draft',
         photos_by_section: emptyPhotosBySection(),
         comments_by_section: emptyCommentsBySection(),
+        has_walkthrough: false,
         created_at: now,
         updated_at: now,
       }
       await db.inspections.put(plainInspection(draft))
       inspection.value = draft
       photos.value = []
+      walkthrough.value = null
     } finally {
       isLoading.value = false
     }
@@ -86,8 +91,13 @@ export const useInspectionStore = defineStore('inspection', () => {
       if (!record.comments_by_section) {
         record.comments_by_section = emptyCommentsBySection()
       }
+      // Back-fill has_walkthrough for drafts saved before the v3 schema bump.
+      if (typeof record.has_walkthrough !== 'boolean') {
+        record.has_walkthrough = false
+      }
       inspection.value = record
       photos.value = await db.photos.where('inspection_id').equals(id).toArray()
+      walkthrough.value = (await db.walkthroughs.get(id)) ?? null
     } finally {
       isLoading.value = false
     }
@@ -192,6 +202,43 @@ export const useInspectionStore = defineStore('inspection', () => {
     return created.length
   }
 
+  async function setWalkthroughFromFile(file: File): Promise<VideoValidationResult> {
+    if (!inspection.value) {
+      throw new Error('Cannot record a walkthrough before an inspection is loaded.')
+    }
+    const validation = await validateVideo(file)
+    if (!validation.ok) return validation
+
+    const buffer = await file.arrayBuffer()
+    const record: Walkthrough = {
+      inspection_id: inspection.value.id,
+      data: buffer,
+      mime_type: file.type || 'video/mp4',
+      duration_seconds: validation.duration,
+      upload_status: 'pending',
+      captured_at: nowIso(),
+    }
+
+    await db.walkthroughs.put(record)
+    walkthrough.value = record
+
+    inspection.value.has_walkthrough = true
+    inspection.value.updated_at = nowIso()
+    await db.inspections.put(plainInspection(inspection.value))
+
+    return validation
+  }
+
+  async function removeWalkthrough() {
+    if (!inspection.value) return
+    await db.walkthroughs.delete(inspection.value.id)
+    walkthrough.value = null
+    walkthroughProgress.value = null
+    inspection.value.has_walkthrough = false
+    inspection.value.updated_at = nowIso()
+    await db.inspections.put(plainInspection(inspection.value))
+  }
+
   async function removePhoto(photoId: string) {
     if (!inspection.value) return
     const photo = photos.value.find((p) => p.id === photoId)
@@ -244,6 +291,20 @@ export const useInspectionStore = defineStore('inspection', () => {
           ]
         }
       }
+      if (event.type === 'walkthrough_progress') {
+        walkthroughProgress.value = { ...event.progress }
+      }
+      if (event.type === 'walkthrough_uploaded' && walkthrough.value) {
+        walkthrough.value = {
+          ...walkthrough.value,
+          upload_status: 'uploaded',
+          cloudinary_url: event.secure_url,
+          cloudinary_public_id: event.public_id,
+        }
+      }
+      if (event.type === 'walkthrough_failed' && walkthrough.value) {
+        walkthrough.value = { ...walkthrough.value, upload_status: 'failed' }
+      }
     })
 
     try {
@@ -254,12 +315,26 @@ export const useInspectionStore = defineStore('inspection', () => {
         return false
       }
 
+      // Walkthrough video runs after photos so the inspector sees the photo
+      // progress bar finish before the (typically slower) video upload starts.
+      if (inspection_record.has_walkthrough) {
+        const walkthroughResult = await inspectionSync.uploadWalkthrough(inspection_record)
+        if (!walkthroughResult.uploaded) {
+          submitError.value = walkthroughResult.error || 'Walkthrough video failed to upload. Tap submit again to retry.'
+          await setStatus('failed')
+          return false
+        }
+      }
+
       if (inspectionApiConfigured()) {
         const uploadedPhotos = await db.photos
           .where('inspection_id')
           .equals(inspection_record.id)
           .toArray()
-        await submitInspectionToApi(inspection_record, uploadedPhotos)
+        const uploadedWalkthrough = inspection_record.has_walkthrough
+          ? await db.walkthroughs.get(inspection_record.id)
+          : null
+        await submitInspectionToApi(inspection_record, uploadedPhotos, uploadedWalkthrough ?? null)
       }
 
       await setStatus('synced')
@@ -289,9 +364,11 @@ export const useInspectionStore = defineStore('inspection', () => {
     inspection,
     photos,
     photosBySection,
+    walkthrough,
     isLoading,
     isSubmitting,
     syncProgress,
+    walkthroughProgress,
     submitError,
     startNewInspection,
     loadInspection,
@@ -299,6 +376,8 @@ export const useInspectionStore = defineStore('inspection', () => {
     updateMetadata,
     updateSectionComment,
     addPhotoFromFile,
+    setWalkthroughFromFile,
+    removeWalkthrough,
     seedTestPhotos,
     removePhoto,
     submitInspection,

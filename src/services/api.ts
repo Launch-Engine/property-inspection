@@ -1,4 +1,4 @@
-import type { Inspection, Photo } from '@/types'
+import type { Inspection, Photo, Walkthrough } from '@/types'
 
 const API_KEY = import.meta.env.VITE_INSPECTION_API_KEY as string | undefined
 const ENDPOINT = '/api/inspections'
@@ -15,6 +15,11 @@ interface SubmissionPayload {
     cloudinary_url: string
     captured_at: string
   }>
+  walkthrough?: {
+    cloudinary_url: string
+    cloudinary_public_id?: string
+    duration_seconds: number
+  }
 }
 
 export interface SubmitResponse {
@@ -31,6 +36,7 @@ export function inspectionApiConfigured(): boolean {
 export async function submitInspectionToApi(
   inspection: Inspection,
   photos: Photo[],
+  walkthrough: Walkthrough | null = null,
 ): Promise<SubmitResponse> {
   if (!API_KEY) {
     throw new Error('VITE_INSPECTION_API_KEY is not set.')
@@ -58,6 +64,14 @@ export async function submitInspectionToApi(
         cloudinary_url: p.cloudinary_url!,
         captured_at: p.captured_at,
       })),
+  }
+
+  if (walkthrough?.cloudinary_url) {
+    payload.walkthrough = {
+      cloudinary_url: walkthrough.cloudinary_url,
+      cloudinary_public_id: walkthrough.cloudinary_public_id,
+      duration_seconds: walkthrough.duration_seconds,
+    }
   }
 
   const response = await fetch(ENDPOINT, {

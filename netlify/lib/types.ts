@@ -5,6 +5,12 @@ export interface SubmittedPhoto {
   captured_at: string
 }
 
+export interface SubmittedWalkthrough {
+  cloudinary_url: string
+  cloudinary_public_id?: string
+  duration_seconds: number
+}
+
 export interface InspectionSubmission {
   inspection_id: string
   inspector_name: string
@@ -12,6 +18,7 @@ export interface InspectionSubmission {
   inspection_date: string
   comments_by_section?: Record<string, string>
   photos: SubmittedPhoto[]
+  walkthrough?: SubmittedWalkthrough
 }
 
 export interface SectionLabelMap {

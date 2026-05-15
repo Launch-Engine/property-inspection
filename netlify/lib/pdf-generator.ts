@@ -1,4 +1,14 @@
-import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFImage, type PDFPage } from 'pdf-lib'
+import {
+  PDFArray,
+  PDFDocument,
+  PDFName,
+  PDFString,
+  StandardFonts,
+  rgb,
+  type PDFFont,
+  type PDFImage,
+  type PDFPage,
+} from 'pdf-lib'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { sectionLabels, sectionOrder } from './sections'
@@ -21,6 +31,7 @@ const PHOTO_GAP = 12
 const BRAND_BLUE = rgb(66 / 255, 147 / 255, 201 / 255)        // #4293c9
 const BRAND_BLUE_DEEP = rgb(31 / 255, 79 / 255, 115 / 255)    // #1f4f73
 const TEXT_DARK = rgb(0.10, 0.17, 0.24)
+const LINK_BLUE = rgb(0.13, 0.36, 0.62)
 const TEXT_MUTED = rgb(0.35, 0.42, 0.49)
 const DIVIDER = rgb(0.85, 0.89, 0.93)
 
@@ -218,6 +229,168 @@ function fitImageBox(image: PDFImage, maxWidth: number, maxHeight: number) {
   return { width: image.width * scale, height: image.height * scale }
 }
 
+// Cloudinary video URLs look like:
+//   https://res.cloudinary.com/{cloud}/video/upload/v123/{public_id}.mp4
+// Replace the resource type, drop the extension, swap in a transformation
+// that gives us a JPEG poster from one second in.
+function deriveWalkthroughThumbnail(videoUrl: string): string | null {
+  if (!videoUrl.includes('/video/upload/')) return null
+  const withTransform = videoUrl.replace(
+    '/video/upload/',
+    '/video/upload/so_1,w_900,h_506,c_fill,q_80/',
+  )
+  return withTransform.replace(/\.[a-z0-9]+(\?.*)?$/i, '.jpg')
+}
+
+function formatDurationLabel(seconds: number): string {
+  const total = Math.max(0, Math.round(seconds))
+  const minutes = Math.floor(total / 60)
+  const secs = total % 60
+  return `${minutes}:${secs.toString().padStart(2, '0')}`
+}
+
+async function drawWalkthroughSection(
+  ctx: DrawContext,
+  walkthrough: { cloudinary_url: string; duration_seconds: number },
+): Promise<void> {
+  // Force a fresh page so the walkthrough has visual breathing room — it's
+  // the section a PM is most likely to share with an owner.
+  ctx.page = newPage(ctx.doc)
+  ctx.cursorY = PAGE_HEIGHT - MARGIN
+
+  // Heading with the blue accent bar.
+  const titleSize = 14
+  ctx.page.drawRectangle({
+    x: MARGIN,
+    y: ctx.cursorY - 2,
+    width: 3,
+    height: titleSize + 2,
+    color: BRAND_BLUE,
+  })
+  drawText(ctx.page, 'Walkthrough Video', {
+    x: MARGIN + 12,
+    y: ctx.cursorY,
+    size: titleSize,
+    font: ctx.bold,
+    color: BRAND_BLUE_DEEP,
+  })
+
+  const durationLabel = formatDurationLabel(walkthrough.duration_seconds)
+  const durationWidth = ctx.font.widthOfTextAtSize(durationLabel, 10)
+  drawText(ctx.page, durationLabel, {
+    x: PAGE_WIDTH - MARGIN - durationWidth,
+    y: ctx.cursorY,
+    size: 10,
+    font: ctx.font,
+    color: TEXT_MUTED,
+  })
+
+  ctx.cursorY -= 8
+  ctx.page.drawLine({
+    start: { x: MARGIN, y: ctx.cursorY },
+    end: { x: PAGE_WIDTH - MARGIN, y: ctx.cursorY },
+    thickness: 0.5,
+    color: DIVIDER,
+  })
+  ctx.cursorY -= 20
+
+  // Thumbnail: try fetching the derived poster. If Cloudinary returns
+  // anything we can't decode, skip the image and keep the URL block so the
+  // PM still has something to click.
+  const thumbUrl = deriveWalkthroughThumbnail(walkthrough.cloudinary_url)
+  if (thumbUrl) {
+    try {
+      const bytes = await fetchAsJpegBytes(thumbUrl)
+      const image = await ctx.doc.embedJpg(bytes)
+      const usableWidth = PAGE_WIDTH - MARGIN * 2
+      const targetHeight = Math.min(usableWidth * 0.5625, PAGE_HEIGHT - MARGIN - ctx.cursorY - 140)
+      const { width, height } = fitImageBox(image, usableWidth, targetHeight)
+      const x = MARGIN + (usableWidth - width) / 2
+      const y = ctx.cursorY - height
+      ctx.page.drawImage(image, { x, y, width, height })
+
+      // Subtle "play" glyph overlay so the still reads as a video poster.
+      const cx = x + width / 2
+      const cy = y + height / 2
+      const r = Math.min(width, height) * 0.12
+      ctx.page.drawCircle({
+        x: cx,
+        y: cy,
+        size: r,
+        color: rgb(1, 1, 1),
+        opacity: 0.85,
+      })
+      ctx.page.drawSvgPath('M -6 -8 L 8 0 L -6 8 Z', {
+        x: cx,
+        y: cy,
+        color: BRAND_BLUE_DEEP,
+        scale: r / 12,
+      })
+
+      ctx.cursorY = y - 20
+    } catch {
+      ctx.cursorY -= 8
+    }
+  }
+
+  // URL block — drawn as plain text plus a link annotation that overlays the
+  // text and turns it into a clickable region in the rendered PDF.
+  const labelSize = 11
+  const labelText = 'Watch the walkthrough:'
+  drawText(ctx.page, labelText, {
+    x: MARGIN,
+    y: ctx.cursorY - labelSize,
+    size: labelSize,
+    font: ctx.bold,
+    color: TEXT_DARK,
+  })
+  ctx.cursorY -= labelSize + 8
+
+  const urlSize = 10
+  const urlText = walkthrough.cloudinary_url
+  const urlWidth = ctx.font.widthOfTextAtSize(urlText, urlSize)
+  drawText(ctx.page, urlText, {
+    x: MARGIN,
+    y: ctx.cursorY - urlSize,
+    size: urlSize,
+    font: ctx.font,
+    color: LINK_BLUE,
+  })
+
+  // pdf-lib doesn't expose a fluent link helper, so attach a Link annotation
+  // directly on the page object. Underline rect sits flush under the text.
+  try {
+    const linkRect = {
+      x: MARGIN,
+      y: ctx.cursorY - urlSize - 2,
+      width: Math.min(urlWidth, PAGE_WIDTH - MARGIN * 2),
+      height: urlSize + 4,
+    }
+    const annot = ctx.doc.context.obj({
+      Type: 'Annot',
+      Subtype: 'Link',
+      Rect: [linkRect.x, linkRect.y, linkRect.x + linkRect.width, linkRect.y + linkRect.height],
+      Border: [0, 0, 0],
+      A: {
+        Type: 'Action',
+        S: 'URI',
+        URI: PDFString.of(urlText),
+      },
+    })
+    const annotsKey = PDFName.of('Annots')
+    const existing = ctx.page.node.lookup(annotsKey)
+    if (existing instanceof PDFArray) {
+      existing.push(ctx.doc.context.register(annot))
+    } else {
+      ctx.page.node.set(annotsKey, ctx.doc.context.obj([ctx.doc.context.register(annot)]))
+    }
+  } catch {
+    // Link annotation failure is non-fatal — the URL is still readable text.
+  }
+
+  ctx.cursorY -= urlSize + 24
+}
+
 const COMMENT_FONT_SIZE = 10
 const COMMENT_LINE_HEIGHT = 13
 
@@ -333,6 +506,10 @@ export async function generateInspectionPdf(submission: InspectionSubmission): P
   }
 
   drawHeader(ctx, submission, logo)
+
+  if (submission.walkthrough?.cloudinary_url) {
+    await drawWalkthroughSection(ctx, submission.walkthrough)
+  }
 
   // Pre-fetch and embed every photo in parallel before any layout work. With
   // 100 photos and sequential fetches at ~500ms each, generation alone would
