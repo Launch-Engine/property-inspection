@@ -1,14 +1,19 @@
 :root {
-  --color-bg: #f8fafc;
+  /* CFL Property Management brand palette */
+  --color-brand: #4293c9;        /* CFL sky blue (primary brand) */
+  --color-brand-dark: #2f6f9a;   /* darker shade for hover/active */
+  --color-brand-deep: #1f4f73;   /* darkest navy variant */
+  --color-success: #65bc7b;      /* CFL accent green */
+
+  --color-bg: #f4f7fa;
   --color-surface: #ffffff;
-  --color-border: #e2e8f0;
-  --color-text: #0f172a;
-  --color-text-muted: #64748b;
-  --color-primary: #1f2937;
-  --color-primary-hover: #111827;
-  --color-accent: #2563eb;
-  --color-danger: #dc2626;
-  --color-success: #16a34a;
+  --color-border: #d8e3ec;
+  --color-text: #1a2c3e;
+  --color-text-muted: #5a6b7c;
+  --color-primary: var(--color-brand-deep);
+  --color-primary-hover: var(--color-brand-dark);
+  --color-accent: var(--color-brand);
+  --color-danger: #c0392b;
 
   --radius-sm: 6px;
   --radius-md: 10px;

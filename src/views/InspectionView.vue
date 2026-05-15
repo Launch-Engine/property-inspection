@@ -103,9 +103,14 @@ function handleCancel() {
       <button class="inspection__back" type="button" @click="handleCancel">
         ← Back
       </button>
-      <h1 class="inspection__title">Property Inspection – Photo Walkthrough</h1>
+      <img
+        src="/cfl-logo.png"
+        alt="Central Florida Property Management"
+        class="inspection__logo"
+      />
+      <h1 class="inspection__title">Property Inspection</h1>
       <p class="inspection__intro">
-        For each section, take 2-3 photos using your phone camera. Should take about 10-15 minutes.
+        Capture 2-3 photos for each section. The walkthrough takes about 10-15 minutes.
       </p>
       <p v-if="bypassRequired" class="inspection__test-mode" role="status">
         TEST MODE — all fields and photos are optional
@@ -264,9 +269,18 @@ function handleCancel() {
 .inspection__back {
   background: none;
   border: none;
-  color: var(--color-accent);
+  color: var(--color-brand);
   font-size: 0.9375rem;
+  font-weight: 600;
   padding: 0;
+  margin-bottom: var(--space-3);
+}
+
+.inspection__logo {
+  max-width: 220px;
+  width: 100%;
+  height: auto;
+  display: block;
   margin-bottom: var(--space-3);
 }
 
@@ -274,6 +288,7 @@ function handleCancel() {
   font-size: 1.375rem;
   font-weight: 700;
   margin: 0 0 var(--space-2);
+  color: var(--color-text);
 }
 
 .inspection__intro {
@@ -364,24 +379,30 @@ function handleCancel() {
 
 .inspection__submit {
   width: 100%;
-  background-color: var(--color-primary);
+  background-color: var(--color-brand);
   color: white;
   border: none;
   padding: var(--space-4);
   font-size: 1rem;
   font-weight: 600;
   border-radius: var(--radius-md);
-  transition: background-color 0.15s ease;
+  box-shadow: 0 4px 12px rgba(66, 147, 201, 0.25);
+  transition: background-color 0.15s ease, transform 0.1s ease;
 }
 
 .inspection__submit:disabled {
   background-color: var(--color-border);
   color: var(--color-text-muted);
   cursor: not-allowed;
+  box-shadow: none;
 }
 
 .inspection__submit:not(:disabled):hover {
-  background-color: var(--color-primary-hover);
+  background-color: var(--color-brand-dark);
+}
+
+.inspection__submit:not(:disabled):active {
+  transform: translateY(1px);
 }
 
 .inspection__sync {

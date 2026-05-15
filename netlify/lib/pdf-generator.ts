@@ -1,12 +1,26 @@
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFImage, type PDFPage } from 'pdf-lib'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { sectionLabels, sectionOrder } from './sections'
+import { formatUsDate, formatUsDateTime } from './format'
 import type { InspectionSubmission } from './types'
 
 const PAGE_WIDTH = 612 // US Letter, 8.5"
 const PAGE_HEIGHT = 792 // US Letter, 11"
 const MARGIN = 48
 const PHOTO_GAP = 12
-const HEADER_HEIGHT = 110
+
+// CFL Property Management brand palette.
+const BRAND_BLUE = rgb(66 / 255, 147 / 255, 201 / 255)        // #4293c9
+const BRAND_BLUE_DEEP = rgb(31 / 255, 79 / 255, 115 / 255)    // #1f4f73
+const BRAND_GREEN = rgb(101 / 255, 188 / 255, 123 / 255)      // #65bc7b
+const TEXT_DARK = rgb(0.10, 0.17, 0.24)
+const TEXT_MUTED = rgb(0.35, 0.42, 0.49)
+const DIVIDER = rgb(0.85, 0.89, 0.93)
+
+// Loaded once at module load; Netlify's included_files config ships the PNG
+// next to the bundled function.
+const logoBytes = readFileSync(join(__dirname, 'cfl-logo.png'))
 
 // Cloudinary delivers transformed JPEGs when we ask for f_jpg in the URL — we
 // rewrite each photo's URL on the fly so pdf-lib never has to decode HEIC, PNG,
@@ -63,7 +77,7 @@ function drawText(
     y: options.y,
     size: options.size,
     font: options.font,
-    color: options.color ?? rgb(0.06, 0.09, 0.16),
+    color: options.color ?? TEXT_DARK,
   })
 }
 
@@ -71,53 +85,123 @@ function newPage(doc: PDFDocument): PDFPage {
   return doc.addPage([PAGE_WIDTH, PAGE_HEIGHT])
 }
 
-function drawHeader(ctx: DrawContext, submission: InspectionSubmission) {
-  const top = PAGE_HEIGHT - MARGIN
-
-  drawText(ctx.page, 'Property Inspection', {
-    x: MARGIN,
-    y: top,
-    size: 22,
-    font: ctx.bold,
+function drawHeader(ctx: DrawContext, submission: InspectionSubmission, logo: PDFImage) {
+  // Brand band along the top of the page anchors every report in CFL blue.
+  const bandHeight = 76
+  ctx.page.drawRectangle({
+    x: 0,
+    y: PAGE_HEIGHT - bandHeight,
+    width: PAGE_WIDTH,
+    height: bandHeight,
+    color: BRAND_BLUE,
+  })
+  ctx.page.drawRectangle({
+    x: 0,
+    y: PAGE_HEIGHT - bandHeight - 3,
+    width: PAGE_WIDTH,
+    height: 3,
+    color: BRAND_GREEN,
   })
 
-  const lineHeight = 16
-  let y = top - 32
+  // Logo on a white pill so the colored CFL mark stays readable on blue.
+  const logoMaxHeight = 44
+  const logoScale = logoMaxHeight / logo.height
+  const logoWidth = logo.width * logoScale
+  const logoHeight = logo.height * logoScale
+  const pillPadX = 12
+  const pillPadY = 8
+  ctx.page.drawRectangle({
+    x: MARGIN - pillPadX,
+    y: PAGE_HEIGHT - bandHeight + (bandHeight - logoHeight) / 2 - pillPadY,
+    width: logoWidth + pillPadX * 2,
+    height: logoHeight + pillPadY * 2,
+    color: rgb(1, 1, 1),
+    opacity: 0.95,
+  })
+  ctx.page.drawImage(logo, {
+    x: MARGIN,
+    y: PAGE_HEIGHT - bandHeight + (bandHeight - logoHeight) / 2,
+    width: logoWidth,
+    height: logoHeight,
+  })
+
+  // "Property Inspection Report" label, right-aligned inside the band.
+  const reportLabel = 'PROPERTY INSPECTION REPORT'
+  const labelSize = 10
+  const labelWidth = ctx.bold.widthOfTextAtSize(reportLabel, labelSize)
+  drawText(ctx.page, reportLabel, {
+    x: PAGE_WIDTH - MARGIN - labelWidth,
+    y: PAGE_HEIGHT - bandHeight / 2 - 4,
+    size: labelSize,
+    font: ctx.bold,
+    color: rgb(1, 1, 1),
+  })
+
+  // Metadata block below the band.
+  const lineHeight = 18
+  let y = PAGE_HEIGHT - bandHeight - 32
   const fields: Array<[string, string]> = [
     ['Property', submission.property_address || '—'],
     ['Inspector', submission.inspector_name || '—'],
-    ['Inspection Date', submission.inspection_date || '—'],
-    ['Submitted', new Date().toISOString().slice(0, 16).replace('T', ' ')],
+    ['Inspection Date', formatUsDate(submission.inspection_date)],
+    ['Submitted', formatUsDateTime(new Date().toISOString())],
   ]
 
   for (const [label, value] of fields) {
-    drawText(ctx.page, `${label}:`, { x: MARGIN, y, size: 10, font: ctx.bold })
-    drawText(ctx.page, value, { x: MARGIN + 90, y, size: 10, font: ctx.font })
+    drawText(ctx.page, label.toUpperCase(), {
+      x: MARGIN,
+      y,
+      size: 8,
+      font: ctx.bold,
+      color: TEXT_MUTED,
+    })
+    drawText(ctx.page, value, { x: MARGIN + 110, y, size: 11, font: ctx.font })
     y -= lineHeight
   }
 
-  ctx.cursorY = y - 16
+  // Separator under the metadata.
+  ctx.page.drawLine({
+    start: { x: MARGIN, y: y + 4 },
+    end: { x: PAGE_WIDTH - MARGIN, y: y + 4 },
+    thickness: 0.75,
+    color: DIVIDER,
+  })
+
+  ctx.cursorY = y - 14
 }
 
 function drawSectionHeading(ctx: DrawContext, label: string, photoCount: number) {
-  if (ctx.cursorY < MARGIN + 80) {
+  if (ctx.cursorY < MARGIN + 100) {
     ctx.page = newPage(ctx.doc)
     ctx.cursorY = PAGE_HEIGHT - MARGIN
   }
 
-  drawText(ctx.page, label, {
+  // CFL blue accent bar to the left of the section title.
+  const titleSize = 14
+  ctx.page.drawRectangle({
     x: MARGIN,
-    y: ctx.cursorY,
-    size: 14,
-    font: ctx.bold,
+    y: ctx.cursorY - 2,
+    width: 3,
+    height: titleSize + 2,
+    color: BRAND_BLUE,
   })
 
-  drawText(ctx.page, `${photoCount} photo${photoCount === 1 ? '' : 's'}`, {
-    x: PAGE_WIDTH - MARGIN - 80,
+  drawText(ctx.page, label, {
+    x: MARGIN + 12,
+    y: ctx.cursorY,
+    size: titleSize,
+    font: ctx.bold,
+    color: BRAND_BLUE_DEEP,
+  })
+
+  const countText = `${photoCount} photo${photoCount === 1 ? '' : 's'}`
+  const countWidth = ctx.font.widthOfTextAtSize(countText, 10)
+  drawText(ctx.page, countText, {
+    x: PAGE_WIDTH - MARGIN - countWidth,
     y: ctx.cursorY,
     size: 10,
     font: ctx.font,
-    color: rgb(0.39, 0.45, 0.55),
+    color: TEXT_MUTED,
   })
 
   ctx.cursorY -= 8
@@ -125,7 +209,7 @@ function drawSectionHeading(ctx: DrawContext, label: string, photoCount: number)
     start: { x: MARGIN, y: ctx.cursorY },
     end: { x: PAGE_WIDTH - MARGIN, y: ctx.cursorY },
     thickness: 0.5,
-    color: rgb(0.85, 0.87, 0.91),
+    color: DIVIDER,
   })
   ctx.cursorY -= 16
 }
@@ -165,8 +249,18 @@ function drawSectionComment(ctx: DrawContext, comment: string) {
   const trimmed = comment.trim()
   if (!trimmed) return
 
-  const usableWidth = PAGE_WIDTH - MARGIN * 2
+  const indent = 16
+  const usableWidth = PAGE_WIDTH - MARGIN * 2 - indent
   const lines = wrapLines(trimmed, ctx.font, usableWidth)
+
+  // Subtle "NOTES" label so the comment block reads as a deliberate annotation.
+  drawText(ctx.page, 'NOTES', {
+    x: MARGIN,
+    y: ctx.cursorY - COMMENT_FONT_SIZE,
+    size: 7,
+    font: ctx.bold,
+    color: BRAND_BLUE,
+  })
 
   for (const line of lines) {
     if (ctx.cursorY - COMMENT_LINE_HEIGHT < MARGIN) {
@@ -174,15 +268,15 @@ function drawSectionComment(ctx: DrawContext, comment: string) {
       ctx.cursorY = PAGE_HEIGHT - MARGIN
     }
     drawText(ctx.page, line, {
-      x: MARGIN,
+      x: MARGIN + indent,
       y: ctx.cursorY - COMMENT_FONT_SIZE,
       size: COMMENT_FONT_SIZE,
       font: ctx.font,
-      color: rgb(0.32, 0.39, 0.49),
+      color: TEXT_DARK,
     })
     ctx.cursorY -= COMMENT_LINE_HEIGHT
   }
-  ctx.cursorY -= 6
+  ctx.cursorY -= 10
 }
 
 async function drawSectionPhotos(
@@ -222,6 +316,7 @@ export async function generateInspectionPdf(submission: InspectionSubmission): P
 
   const font = await doc.embedFont(StandardFonts.Helvetica)
   const bold = await doc.embedFont(StandardFonts.HelveticaBold)
+  const logo = await doc.embedPng(logoBytes)
   const page = newPage(doc)
 
   const ctx: DrawContext = {
@@ -232,7 +327,7 @@ export async function generateInspectionPdf(submission: InspectionSubmission): P
     cursorY: PAGE_HEIGHT - MARGIN,
   }
 
-  drawHeader(ctx, submission)
+  drawHeader(ctx, submission, logo)
 
   // Pre-fetch and embed every photo in parallel before any layout work. With
   // 100 photos and sequential fetches at ~500ms each, generation alone would
@@ -284,8 +379,37 @@ export async function generateInspectionPdf(submission: InspectionSubmission): P
         .filter((img): img is PDFImage => !!img)
       await drawSectionPhotos(ctx, images)
     }
-    ctx.cursorY -= HEADER_HEIGHT / 8
+    ctx.cursorY -= 14
   }
+
+  // Branded page footer on every page: thin CFL-blue rule, small page numbers
+  // + "CFL Property Management" wordmark.
+  const pages = doc.getPages()
+  pages.forEach((p, index) => {
+    p.drawLine({
+      start: { x: MARGIN, y: MARGIN - 16 },
+      end: { x: PAGE_WIDTH - MARGIN, y: MARGIN - 16 },
+      thickness: 0.5,
+      color: BRAND_BLUE,
+      opacity: 0.6,
+    })
+    drawText(p, 'Central Florida Property Management', {
+      x: MARGIN,
+      y: MARGIN - 30,
+      size: 8,
+      font: bold,
+      color: BRAND_BLUE_DEEP,
+    })
+    const pageLabel = `Page ${index + 1} of ${pages.length}`
+    const pageLabelWidth = font.widthOfTextAtSize(pageLabel, 8)
+    drawText(p, pageLabel, {
+      x: PAGE_WIDTH - MARGIN - pageLabelWidth,
+      y: MARGIN - 30,
+      size: 8,
+      font,
+      color: TEXT_MUTED,
+    })
+  })
 
   return doc.save()
 }

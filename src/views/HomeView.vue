@@ -11,8 +11,13 @@ function startInspection() {
 <template>
   <main class="home">
     <header class="home__header">
+      <img
+        src="/cfl-logo.png"
+        alt="Central Florida Property Management"
+        class="home__logo"
+      />
       <h1 class="home__title">Property Inspection</h1>
-      <p class="home__subtitle">Mobile inspection walkthrough</p>
+      <p class="home__subtitle">Photo walkthrough for your inspector</p>
     </header>
 
     <section class="home__actions">
@@ -20,6 +25,15 @@ function startInspection() {
         Start New Inspection
       </button>
     </section>
+
+    <footer class="home__footer">
+      <p class="home__footer-text">
+        Central Florida Property Management ·
+        <a class="home__footer-link" href="https://cflpropmanagement.com/" rel="noopener">
+          cflpropmanagement.com
+        </a>
+      </p>
+    </footer>
   </main>
 </template>
 
@@ -28,27 +42,40 @@ function startInspection() {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  padding: var(--space-6) var(--space-4);
+  justify-content: space-between;
+  padding: var(--space-6) var(--space-4) calc(var(--space-5) + env(safe-area-inset-bottom));
   min-height: 100dvh;
   text-align: center;
+  background: linear-gradient(180deg, #ffffff 0%, var(--color-bg) 100%);
 }
 
 .home__header {
-  margin-bottom: var(--space-6);
+  margin-top: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.home__logo {
+  max-width: 280px;
+  width: 100%;
+  height: auto;
+  display: block;
 }
 
 .home__title {
-  font-size: 1.75rem;
+  font-size: 1.5rem;
   font-weight: 700;
-  margin: 0 0 var(--space-2);
+  margin: var(--space-3) 0 0;
   color: var(--color-text);
+  letter-spacing: -0.01em;
 }
 
 .home__subtitle {
   margin: 0;
   color: var(--color-text-muted);
-  font-size: 1rem;
+  font-size: 0.9375rem;
 }
 
 .home__actions {
@@ -58,18 +85,41 @@ function startInspection() {
 
 .home__cta {
   width: 100%;
-  background-color: var(--color-primary);
+  background-color: var(--color-brand);
   color: white;
   border: none;
   padding: var(--space-4) var(--space-5);
   font-size: 1rem;
   font-weight: 600;
   border-radius: var(--radius-md);
-  transition: background-color 0.15s ease;
+  box-shadow: 0 4px 12px rgba(66, 147, 201, 0.25);
+  transition: background-color 0.15s ease, transform 0.1s ease;
 }
 
 .home__cta:hover,
 .home__cta:focus-visible {
-  background-color: var(--color-primary-hover);
+  background-color: var(--color-brand-dark);
+}
+
+.home__cta:active {
+  transform: translateY(1px);
+}
+
+.home__footer {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+.home__footer-text {
+  margin: 0;
+}
+
+.home__footer-link {
+  color: var(--color-brand);
+  text-decoration: none;
+}
+
+.home__footer-link:hover {
+  text-decoration: underline;
 }
 </style>

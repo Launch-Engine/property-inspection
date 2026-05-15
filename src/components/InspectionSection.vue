@@ -362,14 +362,14 @@ function handleCommentInput(event: Event) {
 
 .section__capture {
   width: 100%;
-  background-color: var(--color-accent);
+  background-color: var(--color-brand);
   color: white;
   border: none;
   padding: var(--space-3) var(--space-4);
   font-size: 0.9375rem;
   font-weight: 600;
   border-radius: var(--radius-md);
-  transition: opacity 0.15s ease;
+  transition: background-color 0.15s ease, transform 0.1s ease;
 }
 
 .section__capture:disabled {
@@ -380,6 +380,10 @@ function handleCommentInput(event: Event) {
 
 .section__capture:not(:disabled):hover,
 .section__capture:not(:disabled):focus-visible {
-  opacity: 0.92;
+  background-color: var(--color-brand-dark);
+}
+
+.section__capture:not(:disabled):active {
+  transform: translateY(1px);
 }
 </style>
