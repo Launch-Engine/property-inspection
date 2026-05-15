@@ -281,7 +281,7 @@ function handleCancel() {
   width: 100%;
   height: auto;
   display: block;
-  margin-bottom: var(--space-3);
+  margin: 0 auto var(--space-3);
 }
 
 .inspection__title {

@@ -10,21 +10,23 @@ function startInspection() {
 
 <template>
   <main class="home">
-    <header class="home__header">
-      <img
-        src="/cfl-logo.png"
-        alt="Central Florida Property Management"
-        class="home__logo"
-      />
-      <h1 class="home__title">Property Inspection</h1>
-      <p class="home__subtitle">Photo walkthrough for your inspector</p>
-    </header>
+    <div class="home__main">
+      <header class="home__header">
+        <img
+          src="/cfl-logo.png"
+          alt="Central Florida Property Management"
+          class="home__logo"
+        />
+        <h1 class="home__title">Property Inspection</h1>
+        <p class="home__subtitle">Photo walkthrough for your inspector</p>
+      </header>
 
-    <section class="home__actions">
-      <button class="home__cta" type="button" @click="startInspection">
-        Start New Inspection
-      </button>
-    </section>
+      <section class="home__actions">
+        <button class="home__cta" type="button" @click="startInspection">
+          Start New Inspection
+        </button>
+      </section>
+    </div>
 
     <footer class="home__footer">
       <p class="home__footer-text">
@@ -42,15 +44,24 @@ function startInspection() {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: space-between;
-  padding: var(--space-6) var(--space-4) calc(var(--space-5) + env(safe-area-inset-bottom));
+  padding: var(--space-5) var(--space-4) calc(var(--space-5) + env(safe-area-inset-bottom));
   min-height: 100dvh;
   text-align: center;
   background: linear-gradient(180deg, #ffffff 0%, var(--color-bg) 100%);
 }
 
+.home__main {
+  flex: 1;
+  width: 100%;
+  max-width: 360px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-5);
+}
+
 .home__header {
-  margin-top: var(--space-5);
   display: flex;
   flex-direction: column;
   align-items: center;
