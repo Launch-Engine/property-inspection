@@ -70,7 +70,13 @@ export default async (request: Request, _context: Context): Promise<Response> =>
     return json(500, { error: 'MONDAY_API_TOKEN is not set on this site.' })
   }
 
-  let body: { workspace_name?: string; board_name?: string; dry_run?: boolean } = {}
+  let body: {
+    workspace_name?: string
+    board_name?: string
+    dry_run?: boolean
+    add_columns_to_board_id?: string
+    columns_to_add?: string[]
+  } = {}
   try {
     body = (await request.json()) as typeof body
   } catch {
@@ -87,6 +93,38 @@ export default async (request: Request, _context: Context): Promise<Response> =>
       {},
       token,
     )
+
+    // Side-mode: add specific columns to an existing board without creating a
+    // new workspace/board. Used to backfill new columns (e.g., walkthrough
+    // video) onto boards that were provisioned before that column existed.
+    if (body.add_columns_to_board_id) {
+      const targetBoardId = body.add_columns_to_board_id
+      const keysToAdd = body.columns_to_add && body.columns_to_add.length > 0
+        ? body.columns_to_add
+        : COLUMNS_TO_CREATE.map((c) => c.key)
+      const created: Record<string, string> = {}
+      for (const key of keysToAdd) {
+        const spec = COLUMNS_TO_CREATE.find((c) => c.key === key)
+        if (!spec) continue
+        const result = await monday<{ create_column: { id: string; title: string } }>(
+          `mutation CreateCol($board_id: ID!, $title: String!, $type: ColumnType!, $description: String!) {
+            create_column(board_id: $board_id, title: $title, column_type: $type, description: $description) {
+              id title
+            }
+          }`,
+          { board_id: targetBoardId, title: spec.title, type: spec.type, description: spec.description },
+          token,
+        )
+        created[key] = result.create_column.id
+      }
+      return json(200, {
+        ok: true,
+        mode: 'add_columns',
+        account: { id: me.me.account.id, name: me.me.account.name, slug: me.me.account.slug },
+        board_id: targetBoardId,
+        added_column_ids: created,
+      })
+    }
 
     // Dry run: just return the account we'd be writing into. Use this before
     // committing to creating workspaces/boards so we don't pollute the wrong
