@@ -9,14 +9,18 @@ const REQUIRED_ENV = [
   'INSPECTION_API_KEY',
 ] as const
 
+// Column IDs are now env-driven so swapping between Monday accounts (CFL,
+// LaunchEngine, future clients) doesn't require a code change. Defaults
+// preserve the original LaunchEngine board so the function still works if
+// the per-column env vars aren't set.
 const COLUMN_IDS = {
-  inspector: 'text_mm3btzdy',
-  inspection_date: 'date_mm3bd4tq',
-  status: 'color_mm3bw9q4',
-  pdf_report: 'file_mm3bqsfr',
-  photo_count: 'numeric_mm3by75s',
-  submitted_at: 'date_mm3btshw',
-  inspection_id: 'text_mm3bjzx9',
+  inspector: process.env.MONDAY_COL_INSPECTOR || 'text_mm3btzdy',
+  inspection_date: process.env.MONDAY_COL_INSPECTION_DATE || 'date_mm3bd4tq',
+  status: process.env.MONDAY_COL_STATUS || 'color_mm3bw9q4',
+  pdf_report: process.env.MONDAY_COL_PDF_REPORT || 'file_mm3bqsfr',
+  photo_count: process.env.MONDAY_COL_PHOTO_COUNT || 'numeric_mm3by75s',
+  submitted_at: process.env.MONDAY_COL_SUBMITTED_AT || 'date_mm3btshw',
+  inspection_id: process.env.MONDAY_COL_INSPECTION_ID || 'text_mm3bjzx9',
 }
 
 function jsonResponse(status: number, body: unknown): Response {
