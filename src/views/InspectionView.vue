@@ -1,14 +1,16 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { sections } from '@/config/sections'
 import type { SectionKey } from '@/types'
 import { useInspectionStore } from '@/stores/inspection'
+import { loadInspectionContext } from '@/services/api'
 import InspectionSection from '@/components/InspectionSection.vue'
 import WalkthroughCapture from '@/components/WalkthroughCapture.vue'
 
 const router = useRouter()
+const route = useRoute()
 const store = useInspectionStore()
 const {
   inspection,
@@ -21,15 +23,57 @@ const {
   submitError,
 } = storeToRefs(store)
 
-// Test mode bypasses all required-field validation so we can exercise the
-// submit/sync flow without filling out the whole form. Flip the Netlify env
-// var (or use ?test=1 in the URL) to disable validation; remove it later.
+// Test mode bypasses both required-field validation AND the requirement that
+// the inspection arrive with a Monday item ID. Flip via Netlify env var or
+// add ?test=1 to the URL.
 const bypassRequired =
   import.meta.env.VITE_BYPASS_REQUIRED === 'true' ||
-  new URLSearchParams(window.location.search).get('test') === '1'
+  (typeof window !== 'undefined' &&
+    new URLSearchParams(window.location.search).get('test') === '1')
+
+const contextError = ref<string | null>(null)
+const alreadySubmitted = ref(false)
+const mondayItemId = computed(() => {
+  const raw = route.query.item
+  if (typeof raw === 'string' && /^\d+$/.test(raw)) return raw
+  if (Array.isArray(raw)) {
+    const first = raw[0]
+    if (typeof first === 'string' && /^\d+$/.test(first)) return first
+  }
+  return null
+})
 
 onMounted(async () => {
-  await store.loadOrStartDraft()
+  const itemId = mondayItemId.value
+  if (itemId) {
+    try {
+      const context = await loadInspectionContext(itemId)
+      if (context.already_submitted) {
+        alreadySubmitted.value = true
+      }
+      await store.loadOrStartForMondayItem(itemId, {
+        property_address: context.property_address,
+        inspector_name: context.inspector_name ?? undefined,
+        inspection_date: context.inspection_date ?? undefined,
+      })
+      return
+    } catch (err) {
+      contextError.value =
+        err instanceof Error
+          ? err.message
+          : 'Could not load this inspection from the property management board.'
+      return
+    }
+  }
+
+  if (bypassRequired) {
+    // Internal test path: start an ad-hoc draft with no Monday item.
+    await store.loadOrStartDraft()
+    return
+  }
+
+  contextError.value =
+    'This inspection link is missing an item ID. Please open the link your office sent you.'
 })
 
 const requiredSectionsMissing = computed(() => {
@@ -105,6 +149,8 @@ async function handleStartAnother() {
   await store.startNewInspection()
 }
 
+const propertyLocked = computed(() => Boolean(inspection.value?.monday_item_id))
+
 const seedBusy = ref(false)
 const seedMessage = ref<string | null>(null)
 
@@ -149,6 +195,24 @@ function handleCancel() {
 
     <p v-if="isLoading && !inspection" class="inspection__loading">Loading…</p>
 
+    <section v-else-if="contextError" class="inspection__notice" role="alert">
+      <h2 class="inspection__notice-title">Inspection link required</h2>
+      <p class="inspection__notice-body">{{ contextError }}</p>
+      <button class="inspection__back" type="button" @click="handleCancel">
+        Back to Home
+      </button>
+    </section>
+
+    <section v-else-if="alreadySubmitted && !isSynced" class="inspection__notice" role="status">
+      <h2 class="inspection__notice-title">Already submitted</h2>
+      <p class="inspection__notice-body">
+        This inspection has already been submitted. Contact your office if you need to make changes.
+      </p>
+      <button class="inspection__back" type="button" @click="handleCancel">
+        Back to Home
+      </button>
+    </section>
+
     <section v-else-if="isSynced" class="inspection__success" role="status">
       <div class="inspection__success-check" aria-hidden="true">✓</div>
       <h2 class="inspection__success-title">Inspection Submitted</h2>
@@ -156,8 +220,13 @@ function handleCancel() {
         All photos uploaded. The report is being prepared for {{ inspection?.property_address || 'the property' }}.
       </p>
       <div class="inspection__success-actions">
-        <button class="inspection__submit" type="button" @click="handleStartAnother">
-          Start Another Inspection
+        <button
+          v-if="bypassRequired"
+          class="inspection__submit"
+          type="button"
+          @click="handleStartAnother"
+        >
+          Start Another Test Inspection
         </button>
         <button class="inspection__back" type="button" @click="handleCancel">
           Back to Home
@@ -184,13 +253,16 @@ function handleCancel() {
         <label class="field">
           <span class="field__label">
             Property Address <span class="field__required">*</span>
+            <span v-if="propertyLocked" class="field__locked-tag">from your assignment</span>
           </span>
           <input
             :value="inspection.property_address"
             class="field__input"
+            :class="{ 'field__input--locked': propertyLocked }"
             type="text"
             autocomplete="street-address"
             required
+            :readonly="propertyLocked"
             @input="updateField('property_address', ($event.target as HTMLInputElement).value)"
           />
         </label>
@@ -400,6 +472,49 @@ function handleCancel() {
 
 .field__input:focus {
   border-color: var(--color-accent);
+}
+
+.field__input--locked {
+  background-color: var(--color-bg);
+  color: var(--color-text-muted);
+  cursor: not-allowed;
+}
+
+.field__locked-tag {
+  display: inline-block;
+  margin-left: var(--space-2);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-brand);
+}
+
+.inspection__notice {
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5) var(--space-4);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+
+.inspection__notice-title {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.inspection__notice-body {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 0.9375rem;
+  max-width: 360px;
 }
 
 .inspection__sections {

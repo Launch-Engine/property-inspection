@@ -51,16 +51,24 @@ export const useInspectionStore = defineStore('inspection', () => {
     return grouped
   })
 
-  async function startNewInspection() {
+  interface NewInspectionContext {
+    monday_item_id?: string | null
+    property_address?: string
+    inspector_name?: string
+    inspection_date?: string
+  }
+
+  async function startNewInspection(context: NewInspectionContext = {}) {
     isLoading.value = true
     try {
       const id = newUuid()
       const now = nowIso()
       const draft: Inspection = {
         id,
-        inspector_name: '',
-        property_address: '',
-        inspection_date: todayIsoDate(),
+        monday_item_id: context.monday_item_id ?? null,
+        inspector_name: context.inspector_name ?? '',
+        property_address: context.property_address ?? '',
+        inspection_date: context.inspection_date ?? todayIsoDate(),
         status: 'draft',
         photos_by_section: emptyPhotosBySection(),
         comments_by_section: emptyCommentsBySection(),
@@ -95,6 +103,11 @@ export const useInspectionStore = defineStore('inspection', () => {
       if (typeof record.has_walkthrough !== 'boolean') {
         record.has_walkthrough = false
       }
+      // Back-fill monday_item_id for drafts saved before the board-initiated
+      // workflow shipped.
+      if (record.monday_item_id === undefined) {
+        record.monday_item_id = null
+      }
       inspection.value = record
       photos.value = await db.photos.where('inspection_id').equals(id).toArray()
       walkthrough.value = (await db.walkthroughs.get(id)) ?? null
@@ -115,6 +128,34 @@ export const useInspectionStore = defineStore('inspection', () => {
       await loadInspection(existingDraft.id)
     } else {
       await startNewInspection()
+    }
+  }
+
+  async function loadOrStartForMondayItem(
+    monday_item_id: string,
+    context: NewInspectionContext = {},
+  ) {
+    isLoading.value = true
+    try {
+      const existing = await db.inspections
+        .filter((row) => row.monday_item_id === monday_item_id && row.status !== 'synced')
+        .first()
+
+      if (existing) {
+        await loadInspection(existing.id)
+        // Refresh the address from context in case the PM updated the Monday
+        // item after the draft was first opened.
+        if (inspection.value && context.property_address) {
+          inspection.value.property_address = context.property_address
+          inspection.value.updated_at = nowIso()
+          await db.inspections.put(plainInspection(inspection.value))
+        }
+        return
+      }
+
+      await startNewInspection({ ...context, monday_item_id })
+    } finally {
+      isLoading.value = false
     }
   }
 
@@ -373,6 +414,7 @@ export const useInspectionStore = defineStore('inspection', () => {
     startNewInspection,
     loadInspection,
     loadOrStartDraft,
+    loadOrStartForMondayItem,
     updateMetadata,
     updateSectionComment,
     addPhotoFromFile,

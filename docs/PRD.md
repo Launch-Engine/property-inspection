@@ -8,9 +8,62 @@
 
 ---
 
-## Walkthrough Video
+## Board-Initiated Workflow
 
 **Status:** In development
+
+### Problem
+
+Today every PWA submission creates a brand-new Monday row, which means the property manager has no way to assign a specific inspection to a specific person ahead of time. They can't see "this property is waiting on an inspection" until after the inspector hits Submit. Inspectors who lose the link have no way to find it again, and inspections completed for the wrong unit can't be tied back to a known assignment.
+
+We need to flip the flow: the Monday item exists first (PM creates it, optionally via an upstream automation), the inspector receives a link tied to that item, and their submission **updates** that row instead of creating a new one. The PM regains the ability to triage, assign, and track inspections before they happen.
+
+### User stories
+
+- As a property manager, I create an item on the Inspections board with the property address, then trigger an email to the inspector with a link that opens the inspection form pre-filled for that property.
+- As an inspector, I tap the link in my email and the inspection form opens with the address already filled in — I never type it.
+- As an inspector, if I lose the email I can ask the PM to resend the same link, and submitting still updates the same row instead of creating a duplicate.
+- As a property manager, when an inspection comes in, I see the same row I created update with the photo count, the PDF, the walkthrough video link, and a status of Submitted.
+
+### Acceptance criteria
+
+- The PWA only accepts inspections tied to an existing Monday item ID (provided as `?item={id}` in the URL).
+- Visiting the inspection URL without a valid item ID shows an explanatory message and does not start a draft.
+- The property address field is read-only and pre-populated from the Monday item.
+- On submit, the existing Monday item is updated in place — no new row is created.
+- A re-submission against the same item is idempotent (status stays Submitted, columns and PDF refresh).
+- TEST MODE (`?test=1`) continues to allow internal testing without a Monday item.
+
+### In scope
+
+- New backend endpoint that returns the property address (and other context fields) for a given Monday item ID.
+- Inspection form pre-fills the address and locks it.
+- Submission updates the existing Monday item (status, photo count, submitted_at, PDF, walkthrough URL).
+- Home page replaces "Start New Inspection" with an "Open the link from your inspection email" message.
+
+### Out of scope (this release)
+
+- Signed/expiring URL tokens.
+- Per-inspector login.
+- Reminder emails for unfinished inspections (Make.com or Monday automations own this).
+- Bulk import of inspections from CSV (Make.com can already do this).
+
+### Success metrics
+
+- Zero duplicate Monday rows created during pilot use.
+- Pilot inspectors complete inspections without ever re-typing the property address.
+- PMs can see the status of pending inspections directly on the board (Pending → Submitted) without leaving Monday.
+
+### Operational notes
+
+- **URL format for emails:** `https://cfpm-inspection.netlify.app/inspect?item={pulse_id}`. Make.com substitutes the Monday `pulse_id` directly into the `item` query parameter and sends the email. No webhook is required on our side.
+- No additional Monday columns are required for this release. PMs use existing columns to set the property address (item name) and any email recipient field they want.
+
+---
+
+## Walkthrough Video
+
+**Status:** Shipped
 
 ### Problem
 

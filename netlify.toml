@@ -11,6 +11,11 @@
   included_files = ["netlify/lib/cfl-logo.png"]
 
 [[redirects]]
+  from = "/api/inspections/context"
+  to = "/.netlify/functions/inspection-context"
+  status = 200
+
+[[redirects]]
   from = "/api/inspections"
   to = "/.netlify/functions/submit-inspection"
   status = 200

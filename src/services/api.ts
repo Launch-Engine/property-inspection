@@ -2,9 +2,11 @@ import type { Inspection, Photo, Walkthrough } from '@/types'
 
 const API_KEY = import.meta.env.VITE_INSPECTION_API_KEY as string | undefined
 const ENDPOINT = '/api/inspections'
+const CONTEXT_ENDPOINT = '/api/inspections/context'
 
 interface SubmissionPayload {
   inspection_id: string
+  monday_item_id: string
   inspector_name: string
   property_address: string
   inspection_date: string
@@ -29,8 +31,32 @@ export interface SubmitResponse {
   error?: string
 }
 
+export interface InspectionContext {
+  ok: boolean
+  monday_item_id: string
+  property_address: string
+  inspector_name: string | null
+  inspection_date: string | null
+  already_submitted: boolean
+  error?: string
+}
+
 export function inspectionApiConfigured(): boolean {
   return Boolean(API_KEY)
+}
+
+export async function loadInspectionContext(itemId: string): Promise<InspectionContext> {
+  if (!API_KEY) {
+    throw new Error('VITE_INSPECTION_API_KEY is not set.')
+  }
+  const response = await fetch(`${CONTEXT_ENDPOINT}?item_id=${encodeURIComponent(itemId)}`, {
+    headers: { 'X-API-Key': API_KEY },
+  })
+  const json = (await response.json().catch(() => ({}))) as InspectionContext
+  if (!response.ok || !json.ok) {
+    throw new Error(json.error || `Context lookup failed (${response.status})`)
+  }
+  return json
 }
 
 export async function submitInspectionToApi(
@@ -40,6 +66,9 @@ export async function submitInspectionToApi(
 ): Promise<SubmitResponse> {
   if (!API_KEY) {
     throw new Error('VITE_INSPECTION_API_KEY is not set.')
+  }
+  if (!inspection.monday_item_id) {
+    throw new Error('This inspection has no Monday item ID. Open the link from your inspection email to start.')
   }
 
   // Only send comments that aren't empty/whitespace — keeps the payload small
@@ -52,6 +81,7 @@ export async function submitInspectionToApi(
 
   const payload: SubmissionPayload = {
     inspection_id: inspection.id,
+    monday_item_id: inspection.monday_item_id,
     inspector_name: inspection.inspector_name,
     property_address: inspection.property_address,
     inspection_date: inspection.inspection_date,

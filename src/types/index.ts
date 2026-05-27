@@ -55,6 +55,7 @@ export interface Walkthrough {
 
 export interface Inspection {
   id: string
+  monday_item_id: string | null
   inspector_name: string
   property_address: string
   inspection_date: string

@@ -1,6 +1,6 @@
 import type { Context } from '@netlify/functions'
 import { generateInspectionPdf } from '../lib/pdf-generator'
-import { attachFileToItem, createInspectionItem, findItemByInspectionId } from '../lib/monday-client'
+import { attachFileToItem, updateInspectionItem } from '../lib/monday-client'
 import type { InspectionSubmission } from '../lib/types'
 
 const REQUIRED_ENV = [
@@ -9,7 +9,7 @@ const REQUIRED_ENV = [
   'INSPECTION_API_KEY',
 ] as const
 
-// Column IDs are now env-driven so swapping between Monday accounts (CFL,
+// Column IDs are env-driven so swapping between Monday accounts (CFL,
 // LaunchEngine, future clients) doesn't require a code change. Defaults
 // preserve the original LaunchEngine board so the function still works if
 // the per-column env vars aren't set.
@@ -44,6 +44,7 @@ function validatePayload(payload: unknown): payload is InspectionSubmission {
   if (!payload || typeof payload !== 'object') return false
   const p = payload as Partial<InspectionSubmission>
   if (typeof p.inspection_id !== 'string' || p.inspection_id.length === 0) return false
+  if (typeof p.monday_item_id !== 'string' || !/^\d+$/.test(p.monday_item_id)) return false
   if (typeof p.inspector_name !== 'string') return false
   if (typeof p.property_address !== 'string') return false
   if (typeof p.inspection_date !== 'string') return false
@@ -99,41 +100,18 @@ export default async (request: Request, _context: Context): Promise<Response> =>
   }
 
   if (!validatePayload(payload)) {
-    return jsonResponse(400, { error: 'Payload failed validation' })
+    return jsonResponse(400, { error: 'Payload failed validation. monday_item_id is required.' })
   }
 
   const submission = payload
 
   try {
-    // Idempotency: if a Monday item already exists for this inspection_id,
-    // return it instead of creating a duplicate. Catches double-taps, network
-    // retries, and any other path that fires the function twice for the same
-    // inspection.
-    const existing = await findItemByInspectionId({
-      token: process.env.MONDAY_API_TOKEN!,
-      board_id: process.env.MONDAY_BOARD_ID!,
-      inspection_id_column: COLUMN_IDS.inspection_id,
-      inspection_id: submission.inspection_id,
-    })
-
-    if (existing) {
-      return jsonResponse(200, {
-        ok: true,
-        monday_item_id: existing.item_id,
-        photo_count: submission.photos.length,
-        deduplicated: true,
-      })
-    }
-
     const pdfBytes = await generateInspectionPdf(submission)
 
-    const itemName =
-      submission.property_address.trim() || `Inspection ${submission.inspection_id.slice(0, 8)}`
-
-    const { item_id } = await createInspectionItem({
+    await updateInspectionItem({
       token: process.env.MONDAY_API_TOKEN!,
       board_id: process.env.MONDAY_BOARD_ID!,
-      item_name: itemName,
+      item_id: submission.monday_item_id,
       column_ids: {
         ...COLUMN_IDS,
         walkthrough_video: COLUMN_IDS.walkthrough_video || undefined,
@@ -141,7 +119,7 @@ export default async (request: Request, _context: Context): Promise<Response> =>
       columns: {
         inspector: submission.inspector_name || undefined,
         inspection_date: submission.inspection_date || undefined,
-        status_label: 'New',
+        status_label: 'Submitted',
         photo_count: submission.photos.length,
         submitted_at_iso: new Date().toISOString(),
         inspection_id: submission.inspection_id,
@@ -151,7 +129,7 @@ export default async (request: Request, _context: Context): Promise<Response> =>
 
     await attachFileToItem({
       token: process.env.MONDAY_API_TOKEN!,
-      item_id,
+      item_id: submission.monday_item_id,
       column_id: COLUMN_IDS.pdf_report,
       file: pdfBytes,
       file_name: `inspection-${submission.inspection_id.slice(0, 8)}.pdf`,
@@ -160,7 +138,7 @@ export default async (request: Request, _context: Context): Promise<Response> =>
 
     return jsonResponse(200, {
       ok: true,
-      monday_item_id: item_id,
+      monday_item_id: submission.monday_item_id,
       photo_count: submission.photos.length,
     })
   } catch (err) {

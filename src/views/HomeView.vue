@@ -1,10 +1,22 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
 
-function startInspection() {
-  router.push({ name: 'inspection-new' })
+// TEST MODE escape hatch: when ?test=1 is present (or the global env var is set
+// at build time) we still expose a way to start an inspection without a Monday
+// item — useful for internal QA and one-off demos. Production traffic always
+// arrives at /inspect?item={pulse_id} via the Make.com email link.
+const bypassRequired = computed(
+  () =>
+    import.meta.env.VITE_BYPASS_REQUIRED === 'true' ||
+    (typeof window !== 'undefined' &&
+      new URLSearchParams(window.location.search).get('test') === '1'),
+)
+
+function startTestInspection() {
+  router.push({ path: '/inspect', query: { test: '1' } })
 }
 </script>
 
@@ -20,9 +32,19 @@ function startInspection() {
         <h1 class="home__title">Property Inspection</h1>
       </header>
 
-      <section class="home__actions">
-        <button class="home__cta" type="button" @click="startInspection">
-          Start New Inspection
+      <section class="home__instructions">
+        <p class="home__instructions-lead">
+          Open the inspection link your office sent you to begin.
+        </p>
+        <p class="home__instructions-detail">
+          Each inspection is tied to a specific property. Use the link from your
+          email so the report goes back to the right assignment.
+        </p>
+      </section>
+
+      <section v-if="bypassRequired" class="home__actions">
+        <button class="home__cta" type="button" @click="startTestInspection">
+          Start Test Inspection
         </button>
       </section>
     </div>
@@ -52,7 +74,7 @@ function startInspection() {
 .home__main {
   flex: 1;
   width: 100%;
-  max-width: 360px;
+  max-width: 400px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -80,6 +102,31 @@ function startInspection() {
   margin: var(--space-3) 0 0;
   color: var(--color-text);
   letter-spacing: -0.01em;
+}
+
+.home__instructions {
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: 100%;
+}
+
+.home__instructions-lead {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.home__instructions-detail {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+  line-height: 1.45;
 }
 
 .home__actions {

@@ -43,6 +43,47 @@ interface MondayGraphQLResponse<T> {
   error_message?: string
 }
 
+export interface ItemContextColumns {
+  property_address?: string
+  inspector_name?: string
+  inspection_date?: string
+  status_label?: string
+}
+
+export async function getItemContext(options: {
+  token: string
+  item_id: string
+  column_ids: Array<string>
+}): Promise<{ item_name: string; columns: Record<string, string> } | null> {
+  const query = `
+    query GetItemContext($id: [ID!], $cols: [String!]) {
+      items(ids: $id) {
+        id
+        name
+        column_values(ids: $cols) {
+          id
+          text
+        }
+      }
+    }
+  `
+
+  const data = await monday<{ items: Array<{ id: string; name: string; column_values: Array<{ id: string; text: string | null }> }> }>(
+    query,
+    { id: [options.item_id], cols: options.column_ids },
+    options.token,
+  )
+
+  const item = data.items?.[0]
+  if (!item) return null
+
+  const columns: Record<string, string> = {}
+  for (const col of item.column_values) {
+    if (col.text) columns[col.id] = col.text
+  }
+  return { item_name: item.name, columns }
+}
+
 export async function findItemByInspectionId(options: {
   token: string
   board_id: string
@@ -154,6 +195,63 @@ export async function createInspectionItem(options: CreateItemOptions): Promise<
   )
 
   return { item_id: data.create_item.id }
+}
+
+interface UpdateItemOptions {
+  token: string
+  board_id: string
+  item_id: string
+  column_ids: CreateItemOptions['column_ids']
+  columns: CreateItemColumns
+}
+
+export async function updateInspectionItem(options: UpdateItemOptions): Promise<void> {
+  const column_values: Record<string, unknown> = {}
+  const c = options.column_ids
+  const values = options.columns
+
+  if (values.inspector) column_values[c.inspector] = values.inspector
+  if (values.inspection_date) {
+    column_values[c.inspection_date] = { date: isoToMondayDate(values.inspection_date) }
+  }
+  if (values.status_label) column_values[c.status] = { label: values.status_label }
+  if (typeof values.photo_count === 'number') column_values[c.photo_count] = values.photo_count
+  if (values.submitted_at_iso) {
+    column_values[c.submitted_at] = { date: isoToMondayDate(values.submitted_at_iso) }
+  }
+  if (values.inspection_id) column_values[c.inspection_id] = values.inspection_id
+  if (values.walkthrough_url && c.walkthrough_video) {
+    column_values[c.walkthrough_video] = { url: values.walkthrough_url, text: 'Watch walkthrough' }
+  }
+
+  const query = `
+    mutation UpdateInspectionItem(
+      $board_id: ID!
+      $item_id: ID!
+      $column_values: JSON!
+      $create_labels_if_missing: Boolean
+    ) {
+      change_multiple_column_values(
+        board_id: $board_id
+        item_id: $item_id
+        column_values: $column_values
+        create_labels_if_missing: $create_labels_if_missing
+      ) {
+        id
+      }
+    }
+  `
+
+  await monday(
+    query,
+    {
+      board_id: options.board_id,
+      item_id: options.item_id,
+      column_values: JSON.stringify(column_values),
+      create_labels_if_missing: true,
+    },
+    options.token,
+  )
 }
 
 export async function attachFileToItem(options: UploadFileOptions): Promise<void> {

@@ -9,9 +9,17 @@ const router = createRouter({
       component: () => import('@/views/HomeView.vue'),
     },
     {
-      path: '/inspection/new',
-      name: 'inspection-new',
+      // Canonical entry point for board-initiated inspections. Make.com builds
+      // links of the form /inspect?item={pulse_id} when the PM creates a row.
+      path: '/inspect',
+      name: 'inspect',
       component: () => import('@/views/InspectionView.vue'),
+    },
+    {
+      // Legacy alias — keep so any saved drafts or shared links from the
+      // inspector-initiated era still resolve. Behavior is identical.
+      path: '/inspection/new',
+      redirect: '/inspect',
     },
   ],
 })

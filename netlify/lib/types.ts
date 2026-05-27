@@ -13,6 +13,7 @@ export interface SubmittedWalkthrough {
 
 export interface InspectionSubmission {
   inspection_id: string
+  monday_item_id: string
   inspector_name: string
   property_address: string
   inspection_date: string
