@@ -16,7 +16,6 @@ const emptyPhotosBySection = () =>
 const emptyCommentsBySection = () =>
   Object.fromEntries(sections.map((s) => [s.key, ''])) as Record<SectionKey, string>
 
-const todayIsoDate = () => new Date().toISOString().slice(0, 10)
 const nowIso = () => new Date().toISOString()
 
 // iOS Safari rejects Vue reactive proxies when IndexedDB tries to structured-
@@ -74,7 +73,10 @@ export const useInspectionStore = defineStore('inspection', () => {
         monday_item_id: context.monday_item_id ?? null,
         inspector_name: context.inspector_name ?? '',
         property_address: context.property_address ?? '',
-        inspection_date: context.inspection_date ?? todayIsoDate(),
+        // Date stays blank by default. The form-filler enters the date the
+        // day they actually do the walkthrough — not whenever the URL was
+        // first opened.
+        inspection_date: context.inspection_date ?? '',
         status: 'draft',
         photos_by_section: emptyPhotosBySection(),
         comments_by_section: emptyCommentsBySection(),

@@ -68,10 +68,15 @@ onMounted(async () => {
       if (context.already_submitted) {
         alreadySubmitted.value = true
       }
+      // "Your Name" defaults to the tenant from the URL (the person actually
+      // filling out the form). Falls back to the Monday Inspector column if
+      // there's no tenant in the URL, otherwise blank.
+      const yourNameDefault = tenantName ?? context.inspector_name ?? undefined
       await store.loadOrStartForMondayItem(itemId, {
         property_address: context.property_address,
-        inspector_name: context.inspector_name ?? undefined,
-        inspection_date: context.inspection_date ?? undefined,
+        inspector_name: yourNameDefault,
+        // Intentionally not passing inspection_date — the date should be the
+        // day the form is filled out, which the user enters at completion.
         tenant_name: tenantName,
         tenant_email: tenantEmail,
       })
