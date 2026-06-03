@@ -254,6 +254,44 @@ export async function updateInspectionItem(options: UpdateItemOptions): Promise<
   )
 }
 
+export async function setLinkColumnValue(options: {
+  token: string
+  board_id: string
+  item_id: string
+  column_id: string
+  url: string
+  text?: string
+}): Promise<void> {
+  const value = JSON.stringify({ url: options.url, text: options.text || options.url })
+  const query = `
+    mutation SetLink(
+      $board_id: ID!
+      $item_id: ID!
+      $column_id: String!
+      $value: JSON!
+    ) {
+      change_column_value(
+        board_id: $board_id
+        item_id: $item_id
+        column_id: $column_id
+        value: $value
+      ) {
+        id
+      }
+    }
+  `
+  await monday(
+    query,
+    {
+      board_id: options.board_id,
+      item_id: options.item_id,
+      column_id: options.column_id,
+      value,
+    },
+    options.token,
+  )
+}
+
 export async function attachFileToItem(options: UploadFileOptions): Promise<void> {
   const query = `mutation ($file: File!) {
     add_file_to_column(item_id: ${options.item_id}, column_id: "${options.column_id}", file: $file) {
