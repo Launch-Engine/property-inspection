@@ -31,10 +31,13 @@ interface CreateColumnInput {
   key: string
   title: string
   description: string
-  type: 'text' | 'date' | 'status' | 'file' | 'numbers' | 'link'
+  type: 'text' | 'date' | 'status' | 'file' | 'numbers' | 'link' | 'email'
 }
 
 const COLUMNS_TO_CREATE: CreateColumnInput[] = [
+  { key: 'tenant_name', title: 'Tenant Name', description: 'Name of the tenant being addressed in the inspection email', type: 'text' },
+  { key: 'tenant_email', title: 'Tenant Email', description: 'Email address the inspection link is sent to', type: 'email' },
+  { key: 'inspection_link', title: 'Inspection Link', description: 'Per-item URL for the inspector to complete the walkthrough', type: 'link' },
   { key: 'inspector', title: 'Inspector', description: 'Name of the person who completed the inspection', type: 'text' },
   { key: 'inspection_date', title: 'Inspection Date', description: 'Date the inspection was performed', type: 'date' },
   { key: 'status', title: 'Status', description: 'Review status of the inspection submission', type: 'status' },
