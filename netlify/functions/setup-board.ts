@@ -45,7 +45,6 @@ const COLUMNS_TO_CREATE: CreateColumnInput[] = [
   { key: 'walkthrough_video', title: 'Walkthrough Video', description: 'Cloudinary URL for the walkthrough video', type: 'link' },
   { key: 'photo_count', title: 'Photo Count', description: 'Total number of photos in this inspection', type: 'numbers' },
   { key: 'submitted_at', title: 'Submitted At', description: 'When the inspection was synced from the PWA', type: 'date' },
-  { key: 'inspection_id', title: 'Inspection ID', description: 'Client-generated UUID for de-duplication on retry', type: 'text' },
 ]
 
 function json(status: number, body: unknown): Response {
@@ -79,6 +78,8 @@ export default async (request: Request, _context: Context): Promise<Response> =>
     dry_run?: boolean
     add_columns_to_board_id?: string
     columns_to_add?: string[]
+    delete_columns_from_board_id?: string
+    column_ids_to_delete?: string[]
   } = {}
   try {
     body = (await request.json()) as typeof body
@@ -96,6 +97,31 @@ export default async (request: Request, _context: Context): Promise<Response> =>
       {},
       token,
     )
+
+    // Side-mode: delete columns from an existing board by raw Monday column
+    // ID. Used to clean up vestigial columns we no longer write to.
+    if (body.delete_columns_from_board_id) {
+      const targetBoardId = body.delete_columns_from_board_id
+      const idsToDelete = body.column_ids_to_delete ?? []
+      const deleted: string[] = []
+      for (const columnId of idsToDelete) {
+        await monday<{ delete_column: { id: string } }>(
+          `mutation DeleteCol($board_id: ID!, $column_id: String!) {
+            delete_column(board_id: $board_id, column_id: $column_id) { id }
+          }`,
+          { board_id: targetBoardId, column_id: columnId },
+          token,
+        )
+        deleted.push(columnId)
+      }
+      return json(200, {
+        ok: true,
+        mode: 'delete_columns',
+        account: { id: me.me.account.id, name: me.me.account.name, slug: me.me.account.slug },
+        board_id: targetBoardId,
+        deleted_column_ids: deleted,
+      })
+    }
 
     // Side-mode: add specific columns to an existing board without creating a
     // new workspace/board. Used to backfill new columns (e.g., walkthrough
@@ -202,7 +228,6 @@ export default async (request: Request, _context: Context): Promise<Response> =>
         MONDAY_COL_WALKTHROUGH_VIDEO: columnIds.walkthrough_video,
         MONDAY_COL_PHOTO_COUNT: columnIds.photo_count,
         MONDAY_COL_SUBMITTED_AT: columnIds.submitted_at,
-        MONDAY_COL_INSPECTION_ID: columnIds.inspection_id,
       },
     })
   } catch (err) {

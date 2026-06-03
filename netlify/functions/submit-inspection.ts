@@ -122,7 +122,6 @@ export default async (request: Request, _context: Context): Promise<Response> =>
         status_label: 'Submitted',
         photo_count: submission.photos.length,
         submitted_at_iso: new Date().toISOString(),
-        inspection_id: submission.inspection_id,
         walkthrough_url: submission.walkthrough?.cloudinary_url,
       },
     })

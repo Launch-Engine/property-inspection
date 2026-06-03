@@ -89,7 +89,6 @@ export default async (request: Request, _context: Context): Promise<Response> =>
         inspector: inspectorName,
         inspection_date: inspectionDate,
         status_label: 'In Progress',
-        inspection_id: inspectionId,
       },
     })
 
