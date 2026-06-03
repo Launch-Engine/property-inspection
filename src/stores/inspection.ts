@@ -6,7 +6,7 @@ import { newUuid } from '@/utils/uuid'
 import { resizePhoto } from '@/utils/photo'
 import { validateVideo, type VideoValidationResult } from '@/utils/video'
 import { inspectionSync, type SyncProgress, type WalkthroughProgress } from '@/services/sync'
-import { submitInspectionToApi, inspectionApiConfigured } from '@/services/api'
+import { submitInspectionToApi, inspectionApiConfigured, saveInspectionForLater } from '@/services/api'
 import { cloudinaryConfigured } from '@/utils/cloudinary'
 import type { Inspection, Photo, SectionKey, Walkthrough } from '@/types'
 
@@ -39,6 +39,10 @@ export const useInspectionStore = defineStore('inspection', () => {
   // /api/inspections call returning, which is where a double-tap previously
   // created duplicate Monday items.
   const isSubmitting = ref(false)
+  // Tracks an in-flight Save for Later. Independent of isSubmitting so the
+  // two buttons can each guard their own action.
+  const isSavingForLater = ref(false)
+  const saveError = ref<string | null>(null)
 
   const photosBySection = computed<Record<SectionKey, Photo[]>>(() => {
     const grouped = Object.fromEntries(
@@ -73,6 +77,7 @@ export const useInspectionStore = defineStore('inspection', () => {
         photos_by_section: emptyPhotosBySection(),
         comments_by_section: emptyCommentsBySection(),
         has_walkthrough: false,
+        saved_for_later_at: null,
         created_at: now,
         updated_at: now,
       }
@@ -107,6 +112,11 @@ export const useInspectionStore = defineStore('inspection', () => {
       // workflow shipped.
       if (record.monday_item_id === undefined) {
         record.monday_item_id = null
+      }
+      // Back-fill saved_for_later_at for drafts created before the Save for
+      // Later feature shipped.
+      if (record.saved_for_later_at === undefined) {
+        record.saved_for_later_at = null
       }
       inspection.value = record
       photos.value = await db.photos.where('inspection_id').equals(id).toArray()
@@ -296,6 +306,30 @@ export const useInspectionStore = defineStore('inspection', () => {
     await db.inspections.put(plainInspection(inspection.value))
   }
 
+  async function saveForLater(): Promise<boolean> {
+    if (!inspection.value) return false
+    if (isSavingForLater.value) return false
+    if (!inspection.value.monday_item_id) {
+      saveError.value = 'No Monday item to save against. Open the link from your inspection email.'
+      return false
+    }
+
+    isSavingForLater.value = true
+    saveError.value = null
+    try {
+      await saveInspectionForLater(inspection.value)
+      inspection.value.saved_for_later_at = nowIso()
+      inspection.value.updated_at = nowIso()
+      await db.inspections.put(plainInspection(inspection.value))
+      return true
+    } catch (err) {
+      saveError.value = err instanceof Error ? err.message : 'Could not save the inspection.'
+      return false
+    } finally {
+      isSavingForLater.value = false
+    }
+  }
+
   async function submitInspection(): Promise<boolean> {
     if (!inspection.value) return false
     if (isSubmitting.value) return false
@@ -408,6 +442,8 @@ export const useInspectionStore = defineStore('inspection', () => {
     walkthrough,
     isLoading,
     isSubmitting,
+    isSavingForLater,
+    saveError,
     syncProgress,
     walkthroughProgress,
     submitError,
@@ -422,6 +458,7 @@ export const useInspectionStore = defineStore('inspection', () => {
     removeWalkthrough,
     seedTestPhotos,
     removePhoto,
+    saveForLater,
     submitInspection,
   }
 })

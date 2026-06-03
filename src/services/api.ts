@@ -3,6 +3,7 @@ import type { Inspection, Photo, Walkthrough } from '@/types'
 const API_KEY = import.meta.env.VITE_INSPECTION_API_KEY as string | undefined
 const ENDPOINT = '/api/inspections'
 const CONTEXT_ENDPOINT = '/api/inspections/context'
+const SAVE_ENDPOINT = '/api/inspections/save'
 
 interface SubmissionPayload {
   inspection_id: string
@@ -55,6 +56,35 @@ export async function loadInspectionContext(itemId: string): Promise<InspectionC
   const json = (await response.json().catch(() => ({}))) as InspectionContext
   if (!response.ok || !json.ok) {
     throw new Error(json.error || `Context lookup failed (${response.status})`)
+  }
+  return json
+}
+
+export async function saveInspectionForLater(inspection: Inspection): Promise<{ ok: boolean; monday_item_id?: string; error?: string }> {
+  if (!API_KEY) {
+    throw new Error('VITE_INSPECTION_API_KEY is not set.')
+  }
+  if (!inspection.monday_item_id) {
+    throw new Error('This inspection has no Monday item ID. Open the link from your inspection email to start.')
+  }
+
+  const response = await fetch(SAVE_ENDPOINT, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-API-Key': API_KEY,
+    },
+    body: JSON.stringify({
+      inspection_id: inspection.id,
+      monday_item_id: inspection.monday_item_id,
+      inspector_name: inspection.inspector_name || undefined,
+      inspection_date: inspection.inspection_date || undefined,
+    }),
+  })
+
+  const json = (await response.json().catch(() => ({}))) as { ok: boolean; monday_item_id?: string; error?: string }
+  if (!response.ok || !json.ok) {
+    throw new Error(json.error || `Save failed (${response.status})`)
   }
   return json
 }

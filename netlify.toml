@@ -16,6 +16,11 @@
   status = 200
 
 [[redirects]]
+  from = "/api/inspections/save"
+  to = "/.netlify/functions/save-inspection"
+  status = 200
+
+[[redirects]]
   from = "/api/inspections"
   to = "/.netlify/functions/submit-inspection"
   status = 200

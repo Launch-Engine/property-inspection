@@ -8,9 +8,59 @@
 
 ---
 
-## Board-Initiated Workflow
+## Save for Later
 
 **Status:** In development
+
+### Problem
+
+Inspectors often get interrupted mid-walkthrough — a tenant cancels, a maintenance call pulls them away, they need to come back later that day to finish the exterior. Today the form autosaves to the device on every change, so reopening the link on the same phone restores their work — but the inspector has no explicit signal that their work is safe, and the property manager has zero visibility into "this inspection is in flight" until the final Submit hits.
+
+A clear **Save for Later** button gives the inspector a confidence checkpoint and gives the PM a real-time signal that work is underway.
+
+### User stories
+
+- As an inspector, mid-walkthrough I can tap **Save for Later**, see a clear "Saved" confirmation, close the app, and pick up exactly where I left off when I reopen the email link.
+- As a property manager, the moment one of my inspectors starts a job, the Monday row flips from blank/New to **In Progress** so I can see at a glance who's working on what.
+- As an inspector, I can save multiple times without consequences — saving is idempotent.
+
+### Acceptance criteria
+
+- A **Save for Later** button is visible in the inspection form footer, alongside (and above) **Submit Inspection**.
+- Tapping Save for Later updates the Monday item's status column to `In Progress`.
+- On success, the form is replaced by a "Saved for Later" card with **Continue Inspection** and **Back to Home** buttons.
+- The Save button does nothing if the inspection has no Monday item ID (only relevant in TEST MODE, where the button is hidden).
+- Re-opening the same `/inspect?item=...` URL after a save brings the inspector back to the same draft (text, photos, video, comments preserved).
+- Final Submit still works after any number of saves; the Monday status transitions from `In Progress` → `Submitted`.
+
+### In scope
+
+- Single click that updates Monday status, inspector name, and inspection date (if provided in the form).
+- "Saved" card with Continue / Back to Home actions.
+- The button is hidden in TEST MODE when no real Monday item is attached.
+
+### Out of scope (this release)
+
+- Photo upload at save time — photos stay in IndexedDB until the final Submit.
+- Cross-device resume (would require uploading photos at save time + a way to discover drafts by `monday_item_id` from another device).
+- "Last saved 5 min ago" UI indicator — we store the timestamp but don't render it yet.
+- Reminder emails for inspections sitting in `In Progress` for >24h (handled by Make.com or Monday automations).
+
+### Success metrics
+
+- The Monday `In Progress` status appears on the board within ~2 seconds of an inspector tapping Save for Later.
+- Zero data loss after Save → close-app → reopen on the same device.
+- Pilot inspector uses Save for Later at least once during a multi-visit inspection without a support question.
+
+### Operational notes
+
+- The `In Progress` status label is created automatically on first save via Monday's `create_labels_if_missing: true`. No board configuration change needed.
+
+---
+
+## Board-Initiated Workflow
+
+**Status:** Shipped
 
 ### Problem
 

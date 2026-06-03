@@ -18,9 +18,11 @@ const {
   walkthrough,
   isLoading,
   isSubmitting,
+  isSavingForLater,
   syncProgress,
   walkthroughProgress,
   submitError,
+  saveError,
 } = storeToRefs(store)
 
 // Test mode bypasses both required-field validation AND the requirement that
@@ -151,6 +153,25 @@ async function handleStartAnother() {
 
 const propertyLocked = computed(() => Boolean(inspection.value?.monday_item_id))
 
+// Set true after a successful Save for Later. Inspector sees the Saved card
+// until they tap Continue (back to form) or Back to Home.
+const wasSavedForLater = ref(false)
+// Save button only makes sense when the inspection is tied to a Monday item.
+// In TEST MODE without an item we hide it — there's nothing to save against.
+const canSaveForLater = computed(() => Boolean(inspection.value?.monday_item_id))
+
+async function handleSaveForLater() {
+  const ok = await store.saveForLater()
+  if (ok) {
+    wasSavedForLater.value = true
+    if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+}
+
+function handleContinueAfterSave() {
+  wasSavedForLater.value = false
+}
+
 const seedBusy = ref(false)
 const seedMessage = ref<string | null>(null)
 
@@ -211,6 +232,23 @@ function handleCancel() {
       <button class="inspection__back" type="button" @click="handleCancel">
         Back to Home
       </button>
+    </section>
+
+    <section v-else-if="wasSavedForLater" class="inspection__success" role="status">
+      <div class="inspection__success-check" aria-hidden="true">✓</div>
+      <h2 class="inspection__success-title">Saved for Later</h2>
+      <p class="inspection__success-body">
+        Your inspection for {{ inspection?.property_address || 'this property' }} is saved.
+        Open the link from your email again to pick up where you left off.
+      </p>
+      <div class="inspection__success-actions">
+        <button class="inspection__submit" type="button" @click="handleContinueAfterSave">
+          Continue Inspection
+        </button>
+        <button class="inspection__back" type="button" @click="handleCancel">
+          Back to Home
+        </button>
+      </div>
     </section>
 
     <section v-else-if="isSynced" class="inspection__success" role="status">
@@ -350,17 +388,29 @@ function handleCancel() {
         </div>
 
         <p v-if="submitError" class="inspection__submit-error" role="alert">{{ submitError }}</p>
+        <p v-if="saveError" class="inspection__submit-error" role="alert">{{ saveError }}</p>
 
         <button
           class="inspection__submit"
           type="button"
-          :disabled="!canSubmit || isSubmitting"
+          :disabled="!canSubmit || isSubmitting || isSavingForLater"
           @click="handleSubmit"
         >
           <span v-if="isSubmitting">Submitting…</span>
           <span v-else-if="isSynced">Submitted ✓</span>
           <span v-else-if="submitError">Retry Submit</span>
           <span v-else>Submit Inspection</span>
+        </button>
+
+        <button
+          v-if="canSaveForLater"
+          class="inspection__save-later"
+          type="button"
+          :disabled="isSubmitting || isSavingForLater"
+          @click="handleSaveForLater"
+        >
+          <span v-if="isSavingForLater">Saving…</span>
+          <span v-else>Save for Later</span>
         </button>
       </footer>
     </template>
@@ -563,6 +613,29 @@ function handleCancel() {
 
 .inspection__submit:not(:disabled):active {
   transform: translateY(1px);
+}
+
+.inspection__save-later {
+  width: 100%;
+  background-color: transparent;
+  color: var(--color-brand);
+  border: 1.5px solid var(--color-brand);
+  padding: var(--space-3) var(--space-4);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  border-radius: var(--radius-md);
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.inspection__save-later:disabled {
+  border-color: var(--color-border);
+  color: var(--color-text-muted);
+  cursor: not-allowed;
+}
+
+.inspection__save-later:not(:disabled):hover {
+  background-color: var(--color-brand);
+  color: white;
 }
 
 .inspection__sync {

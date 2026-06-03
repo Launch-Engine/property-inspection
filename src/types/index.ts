@@ -63,6 +63,10 @@ export interface Inspection {
   photos_by_section: Record<SectionKey, string[]>
   comments_by_section: Record<SectionKey, string>
   has_walkthrough: boolean
+  // Timestamp of the most recent server-side checkpoint (Save for Later).
+  // Local autosaves into IndexedDB happen on every change and are not
+  // reflected here — this only tracks when we last told Monday "in progress."
+  saved_for_later_at: string | null
   created_at: string
   updated_at: string
 }
