@@ -50,13 +50,22 @@ export default async (request: Request, _context: Context): Promise<Response> =>
     return jsonResponse(200, { challenge: body.challenge })
   }
 
-  // Past the challenge: this is a real event. Auth via ?token= query param.
-  // Monday webhooks don't support custom headers, so we authenticate via the
-  // URL itself. The token reuses INSPECTION_API_KEY (already in Netlify env).
+  // Past the challenge: this is a real event. Auth via the trailing URL path
+  // segment. Monday's integration UI does not accept query parameters on
+  // webhook URLs (and doesn't send custom headers), so we put the secret in
+  // the path and the public URL stays parameter-free. Netlify forwards the
+  // original request URL to the function untouched.
+  //   /api/monday-webhook/{TOKEN}   ← what Monday posts to
+  //   /.netlify/functions/monday-webhook   ← what we see internally
+  // Either form works; we strip the prefix and take the last non-empty
+  // segment as the token.
   const url = new URL(request.url)
-  const token = url.searchParams.get('token')
+  const segments = url.pathname.split('/').filter((s) => s.length > 0)
+  const tokenFromPath = segments[segments.length - 1]
+  const tokenFromQuery = url.searchParams.get('token')
+  const token = tokenFromQuery || tokenFromPath
   if (!process.env.INSPECTION_API_KEY || token !== process.env.INSPECTION_API_KEY) {
-    return jsonResponse(401, { error: 'Invalid or missing token query param' })
+    return jsonResponse(401, { error: 'Invalid or missing token' })
   }
 
   const missing = missingEnv()

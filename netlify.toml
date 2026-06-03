@@ -11,8 +11,8 @@
   included_files = ["netlify/lib/cfl-logo.png"]
 
 [[redirects]]
-  from = "/api/monday-webhook/:token"
-  to = "/.netlify/functions/monday-webhook?token=:token"
+  from = "/api/monday-webhook/*"
+  to = "/.netlify/functions/monday-webhook"
   status = 200
 
 [[redirects]]
