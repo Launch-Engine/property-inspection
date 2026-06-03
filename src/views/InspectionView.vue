@@ -391,6 +391,17 @@ function handleCancel() {
         <p v-if="saveError" class="inspection__submit-error" role="alert">{{ saveError }}</p>
 
         <button
+          v-if="canSaveForLater"
+          class="inspection__save-later"
+          type="button"
+          :disabled="isSubmitting || isSavingForLater"
+          @click="handleSaveForLater"
+        >
+          <span v-if="isSavingForLater">Saving…</span>
+          <span v-else>Save for Later</span>
+        </button>
+
+        <button
           class="inspection__submit"
           type="button"
           :disabled="!canSubmit || isSubmitting || isSavingForLater"
@@ -400,17 +411,6 @@ function handleCancel() {
           <span v-else-if="isSynced">Submitted ✓</span>
           <span v-else-if="submitError">Retry Submit</span>
           <span v-else>Submit Inspection</span>
-        </button>
-
-        <button
-          v-if="canSaveForLater"
-          class="inspection__save-later"
-          type="button"
-          :disabled="isSubmitting || isSavingForLater"
-          @click="handleSaveForLater"
-        >
-          <span v-if="isSavingForLater">Saving…</span>
-          <span v-else>Save for Later</span>
         </button>
       </footer>
     </template>
