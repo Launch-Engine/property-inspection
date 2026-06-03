@@ -45,8 +45,23 @@ const mondayItemId = computed(() => {
   return null
 })
 
+// Tenant context comes from the URL when SendGrid/Make.com sends the email.
+// Optional — periodic inspections may not include either param.
+function readStringQueryParam(name: string): string | null {
+  const raw = route.query[name]
+  if (typeof raw === 'string' && raw.trim().length > 0) return raw.trim()
+  if (Array.isArray(raw)) {
+    const first = raw[0]
+    if (typeof first === 'string' && first.trim().length > 0) return first.trim()
+  }
+  return null
+}
+
 onMounted(async () => {
   const itemId = mondayItemId.value
+  const tenantName = readStringQueryParam('tenant_name')
+  const tenantEmail = readStringQueryParam('tenant_email')
+
   if (itemId) {
     try {
       const context = await loadInspectionContext(itemId)
@@ -57,6 +72,8 @@ onMounted(async () => {
         property_address: context.property_address,
         inspector_name: context.inspector_name ?? undefined,
         inspection_date: context.inspection_date ?? undefined,
+        tenant_name: tenantName,
+        tenant_email: tenantEmail,
       })
       return
     } catch (err) {
@@ -317,6 +334,20 @@ function handleCancel() {
             @input="updateField('inspection_date', ($event.target as HTMLInputElement).value)"
           />
         </label>
+      </section>
+
+      <section
+        v-if="inspection.tenant_name || inspection.tenant_email"
+        class="inspection__tenant"
+        aria-label="Tenant for this inspection"
+      >
+        <p class="inspection__tenant-label">Tenant</p>
+        <p v-if="inspection.tenant_name" class="inspection__tenant-name">
+          {{ inspection.tenant_name }}
+        </p>
+        <p v-if="inspection.tenant_email" class="inspection__tenant-email">
+          {{ inspection.tenant_email }}
+        </p>
       </section>
 
       <WalkthroughCapture
@@ -732,6 +763,38 @@ function handleCancel() {
   font-size: 0.6875rem;
   color: var(--color-text-muted);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.inspection__tenant {
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-left: 3px solid var(--color-brand);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.inspection__tenant-label {
+  margin: 0 0 var(--space-1);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-brand);
+}
+
+.inspection__tenant-name {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.inspection__tenant-email {
+  margin: var(--space-1) 0 0;
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+  word-break: break-all;
 }
 
 .inspection__walkthrough-error {

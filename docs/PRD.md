@@ -8,9 +8,64 @@
 
 ---
 
-## Save for Later
+## Tenant URL Params
 
 **Status:** In development
+
+### Problem
+
+The inspection email is sent by SendGrid (driven by Make.com). When a property has more than one tenant on the lease, the decision of *which* tenant gets the email lives upstream of our app — Make.com handles the picking, the routing, the email composition. What our app needs to do is **carry the chosen tenant's identity into the form so the inspector knows who they're walking through for**, without taking on the responsibility of picking the tenant or writing tenant data back to Monday.
+
+Today the URL only carries `?item={pulse_id}`. The inspection form shows the property address but never the tenant. Inspectors arriving on-site don't know which tenant they're meeting unless the PM tells them separately.
+
+### User stories
+
+- As an inspector, when I tap the email link, I can see the tenant's name and email above the photo sections so I know who I'm meeting at the property.
+- As a property manager, I can have SendGrid/Make.com pass the chosen tenant through the URL — my routing logic stays in Make.com and my Monday columns stay in my own hands.
+- As an inspector, if I Save for Later and reopen the same email link an hour later, the tenant block is still there.
+- As an inspector running a periodic inspection where no tenant is meeting me, the form opens normally without an empty tenant block.
+
+### Acceptance criteria
+
+- The URL `https://cfpm-inspection.netlify.app/inspect?item={pulse_id}&tenant_name={name}&tenant_email={email}` shows a read-only Tenant block above the photo sections containing the name and email.
+- Visiting `/inspect?item={pulse_id}` (no tenant params) opens the form normally with no Tenant block.
+- The Save for Later flow preserves the tenant block when the inspector reopens the same email URL.
+- The Submit flow does NOT write the tenant params to Monday. Whatever upstream set on the `Tenant Name` / `Tenant Email` columns is preserved untouched.
+
+### In scope
+
+- Two optional query params: `tenant_name`, `tenant_email`.
+- Read-only display of tenant info on the inspection form.
+- Storing the tenant context on the local draft so it survives reload and Save for Later resumes.
+
+### Out of scope (this release)
+
+- Writing tenant info back to Monday — upstream owns those columns.
+- Phone number, unit number, or other tenant attributes in the URL.
+- Showing tenant info on the home page or success screens.
+- Validating the email format inside the URL.
+
+### Success metrics
+
+- Pilot inspectors arriving at a multi-tenant property see the correct tenant name on the form without asking the PM.
+- Zero accidental overwrites of Monday's Tenant Name / Tenant Email columns by our app.
+
+### Operational notes
+
+- **URL pattern for the email template:**
+
+  ```
+  https://cfpm-inspection.netlify.app/inspect?item={pulse_id}&tenant_name={url_encoded_name}&tenant_email={url_encoded_email}
+  ```
+
+- All three params should be URL-encoded by Make.com when building the link (`Jane Doe` → `Jane%20Doe`).
+- `tenant_name` and `tenant_email` are optional. The `?item={pulse_id}` param is still required.
+
+---
+
+## Save for Later
+
+**Status:** Shipped
 
 ### Problem
 

@@ -63,6 +63,13 @@ export interface Inspection {
   photos_by_section: Record<SectionKey, string[]>
   comments_by_section: Record<SectionKey, string>
   has_walkthrough: boolean
+  // Tenant context lives on the URL (carried by SendGrid/Make.com) and is
+  // displayed to the inspector. Read-only with respect to Monday — we never
+  // write these back to the Monday item. Null when the URL didn't carry
+  // either param (e.g., periodic inspections where tenant context isn't
+  // relevant).
+  tenant_name: string | null
+  tenant_email: string | null
   // Timestamp of the most recent server-side checkpoint (Save for Later).
   // Local autosaves into IndexedDB happen on every change and are not
   // reflected here — this only tracks when we last told Monday "in progress."

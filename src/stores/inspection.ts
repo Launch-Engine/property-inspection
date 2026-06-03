@@ -60,6 +60,8 @@ export const useInspectionStore = defineStore('inspection', () => {
     property_address?: string
     inspector_name?: string
     inspection_date?: string
+    tenant_name?: string | null
+    tenant_email?: string | null
   }
 
   async function startNewInspection(context: NewInspectionContext = {}) {
@@ -77,6 +79,8 @@ export const useInspectionStore = defineStore('inspection', () => {
         photos_by_section: emptyPhotosBySection(),
         comments_by_section: emptyCommentsBySection(),
         has_walkthrough: false,
+        tenant_name: context.tenant_name ?? null,
+        tenant_email: context.tenant_email ?? null,
         saved_for_later_at: null,
         created_at: now,
         updated_at: now,
@@ -118,6 +122,10 @@ export const useInspectionStore = defineStore('inspection', () => {
       if (record.saved_for_later_at === undefined) {
         record.saved_for_later_at = null
       }
+      // Back-fill tenant fields for drafts created before tenant URL params
+      // shipped. Both default to null.
+      if (record.tenant_name === undefined) record.tenant_name = null
+      if (record.tenant_email === undefined) record.tenant_email = null
       inspection.value = record
       photos.value = await db.photos.where('inspection_id').equals(id).toArray()
       walkthrough.value = (await db.walkthroughs.get(id)) ?? null
@@ -153,12 +161,27 @@ export const useInspectionStore = defineStore('inspection', () => {
 
       if (existing) {
         await loadInspection(existing.id)
-        // Refresh the address from context in case the PM updated the Monday
-        // item after the draft was first opened.
-        if (inspection.value && context.property_address) {
-          inspection.value.property_address = context.property_address
-          inspection.value.updated_at = nowIso()
-          await db.inspections.put(plainInspection(inspection.value))
+        // Refresh the address + tenant context from the URL/Monday so the
+        // draft picks up any corrections made after the original send (e.g.,
+        // Make.com re-sent the email with a different tenant on the link).
+        if (inspection.value) {
+          let touched = false
+          if (context.property_address) {
+            inspection.value.property_address = context.property_address
+            touched = true
+          }
+          if (context.tenant_name !== undefined) {
+            inspection.value.tenant_name = context.tenant_name
+            touched = true
+          }
+          if (context.tenant_email !== undefined) {
+            inspection.value.tenant_email = context.tenant_email
+            touched = true
+          }
+          if (touched) {
+            inspection.value.updated_at = nowIso()
+            await db.inspections.put(plainInspection(inspection.value))
+          }
         }
         return
       }
