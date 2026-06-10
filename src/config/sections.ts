@@ -4,7 +4,7 @@ export const sections: SectionConfig[] = [
   {
     key: 'living_room',
     label: 'Living Room',
-    description: 'Take 2-3 photos of the living room.',
+    description: 'Take 2-3 photos of the room from multiple angles.',
     minPhotos: 2,
     maxPhotos: 10,
     required: true,
@@ -12,7 +12,7 @@ export const sections: SectionConfig[] = [
   {
     key: 'kitchen',
     label: 'Kitchen',
-    description: 'Take 2-3 photos of the kitchen.',
+    description: 'Take 2-3 photos of the room from multiple angles.',
     minPhotos: 2,
     maxPhotos: 10,
     required: true,
@@ -36,7 +36,7 @@ export const sections: SectionConfig[] = [
   {
     key: 'primary_bedroom',
     label: 'Primary Bedroom',
-    description: 'Take 2-3 photos of the primary bedroom.',
+    description: 'Take 2-3 photos of the room from multiple angles.',
     minPhotos: 2,
     maxPhotos: 10,
     required: true,
@@ -44,7 +44,7 @@ export const sections: SectionConfig[] = [
   {
     key: 'bedroom_2',
     label: 'Bedroom 2',
-    description: 'Take 2-3 photos of bedroom 2.',
+    description: 'Take 2-3 photos of the room from multiple angles.',
     minPhotos: 2,
     maxPhotos: 10,
     required: true,
@@ -52,7 +52,7 @@ export const sections: SectionConfig[] = [
   {
     key: 'bedroom_3',
     label: 'Bedroom 3',
-    description: 'Take 2-3 photos of bedroom 3. Skip if not applicable.',
+    description: 'Take 2-3 photos of the room from multiple angles.',
     minPhotos: 0,
     maxPhotos: 10,
     required: false,
@@ -60,7 +60,7 @@ export const sections: SectionConfig[] = [
   {
     key: 'bedroom_4',
     label: 'Bedroom 4',
-    description: 'Take 2-3 photos of bedroom 4. Skip if not applicable.',
+    description: 'Take 2-3 photos of the room from multiple angles.',
     minPhotos: 0,
     maxPhotos: 10,
     required: false,
@@ -68,7 +68,7 @@ export const sections: SectionConfig[] = [
   {
     key: 'primary_bathroom',
     label: 'Primary Bathroom',
-    description: 'Take 2-3 photos of the primary bathroom.',
+    description: 'Take 2-3 photos of the room from multiple angles.',
     minPhotos: 2,
     maxPhotos: 10,
     required: true,
@@ -76,7 +76,7 @@ export const sections: SectionConfig[] = [
   {
     key: 'second_bathroom',
     label: 'Second Bathroom',
-    description: 'Take 2-3 photos of the second bathroom.',
+    description: 'Take 2-3 photos of the room from multiple angles.',
     minPhotos: 2,
     maxPhotos: 10,
     required: true,
@@ -84,7 +84,7 @@ export const sections: SectionConfig[] = [
   {
     key: 'third_bathroom',
     label: 'Third Bathroom',
-    description: 'Take 2-3 photos of the third bathroom.',
+    description: 'Take 2-3 photos of the room from multiple angles.',
     minPhotos: 2,
     maxPhotos: 10,
     required: true,
@@ -100,7 +100,7 @@ export const sections: SectionConfig[] = [
   {
     key: 'utility_room',
     label: 'Utility Room',
-    description: 'Photos of the utility room; include washer and dryer.',
+    description: 'Take 2-3 photos of the room from multiple angles.',
     minPhotos: 1,
     maxPhotos: 5,
     required: true,
