@@ -7,7 +7,6 @@ import type { SectionKey } from '@/types'
 import { useInspectionStore } from '@/stores/inspection'
 import { loadInspectionContext } from '@/services/api'
 import InspectionSection from '@/components/InspectionSection.vue'
-import WalkthroughCapture from '@/components/WalkthroughCapture.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -15,12 +14,10 @@ const store = useInspectionStore()
 const {
   inspection,
   photosBySection,
-  walkthrough,
   isLoading,
   isSubmitting,
   isSavingForLater,
   syncProgress,
-  walkthroughProgress,
   submitError,
   saveError,
 } = storeToRefs(store)
@@ -137,25 +134,6 @@ function handleRemovePhoto(photoId: string) {
 
 function handleUpdateComment(key: SectionKey, value: string) {
   store.updateSectionComment(key, value)
-}
-
-const walkthroughError = ref<string | null>(null)
-
-async function handleWalkthroughPick(file: File) {
-  walkthroughError.value = null
-  try {
-    const result = await store.setWalkthroughFromFile(file)
-    if (!result.ok) {
-      walkthroughError.value = result.reason
-    }
-  } catch (err) {
-    walkthroughError.value = err instanceof Error ? err.message : 'Could not save the walkthrough.'
-  }
-}
-
-async function handleWalkthroughRemove() {
-  walkthroughError.value = null
-  await store.removeWalkthrough()
 }
 
 const isSynced = computed(() => inspection.value?.status === 'synced')
@@ -355,17 +333,10 @@ function handleCancel() {
         </p>
       </section>
 
-      <WalkthroughCapture
-        :walkthrough="walkthrough"
-        :progress="walkthroughProgress"
-        :disabled="isSubmitting"
-        @pick="handleWalkthroughPick"
-        @remove="handleWalkthroughRemove"
-      />
-
-      <p v-if="walkthroughError" class="inspection__walkthrough-error" role="alert">
-        {{ walkthroughError }}
-      </p>
+      <!-- Walkthrough video capture is hidden in production. Re-enable by
+           restoring the WalkthroughCapture component here and the related
+           imports/handlers above. The store, sync service, function-side
+           validation, and PDF page logic all remain in place. -->
 
       <section v-if="bypassRequired" class="inspection__seed">
         <button
@@ -800,15 +771,6 @@ function handleCancel() {
   font-size: 0.875rem;
   color: var(--color-text-muted);
   word-break: break-all;
-}
-
-.inspection__walkthrough-error {
-  margin: 0 0 var(--space-3);
-  padding: var(--space-2) var(--space-3);
-  background-color: #fee2e2;
-  color: #991b1b;
-  border-radius: var(--radius-md);
-  font-size: 0.875rem;
 }
 
 .inspection__seed {
